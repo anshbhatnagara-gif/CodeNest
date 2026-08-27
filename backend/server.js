@@ -18,12 +18,27 @@ const configuredOrigins = [
   process.env.FRONTEND_URL,
   process.env.CORS_ORIGIN
 ].filter(Boolean);
-const allowedOrigins = configuredOrigins.length
-  ? [...new Set([...configuredOrigins, 'http://localhost:5173'])]
-  : ['http://localhost:5173', 'http://localhost:3000'];
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  // Allow all localhost and 127.0.0.1 ports (5173, 5174, 3000, etc.)
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+    return true;
+  }
+  // Allow explicitly configured origins
+  if (configuredOrigins.includes(origin)) {
+    return true;
+  }
+  // Allow Vercel preview/production deployments
+  if (origin.endsWith('.vercel.app')) {
+    return true;
+  }
+  return false;
+};
+
 app.use(cors({
   origin: function(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
       console.warn(`Blocked CORS request from origin: ${origin}`);

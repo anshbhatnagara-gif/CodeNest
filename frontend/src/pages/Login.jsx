@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, LogIn, Eye, EyeOff, BookOpen, ArrowRight } from 'lucide-react';
@@ -19,11 +19,19 @@ const Login = () => {
     setLoading(true);
     try {
       const data = await login(form.email, form.password);
-      if (data.success) {
+      if (data && data.success) {
         navigate(data.user?.role === 'owner' ? '/owner-dashboard' : '/dashboard');
+      } else {
+        setError(data?.message || 'Login failed. Please try again.');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      const backendMessage = err.response?.data?.message;
+      const errorMsg = backendMessage ||
+        (err.message === 'Network Error'
+          ? 'Cannot connect to backend server. Please make sure the backend server is running.'
+          : err.message) ||
+        'Login failed. Please try again.';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }

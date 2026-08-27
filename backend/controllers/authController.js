@@ -23,8 +23,10 @@ export const register = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' });
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Check if user exists
-    const [existing] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
+    const [existing] = await pool.execute('SELECT id FROM users WHERE email = ?', [normalizedEmail]);
     if (existing.length > 0) {
       return res.status(409).json({ success: false, message: 'Email already registered.' });
     }
@@ -32,11 +34,12 @@ export const register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Auto-assign owner role
-    const role = email.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase() ? 'owner' : 'student';
+    const ownerEmail = (process.env.OWNER_EMAIL || '').toLowerCase().trim();
+    const role = (ownerEmail && normalizedEmail === ownerEmail) ? 'owner' : 'student';
 
     const [result] = await pool.execute(
       'INSERT INTO users (name, email, phone, password, role, last_active_at) VALUES (?, ?, ?, ?, ?, NOW())',
-      [name.trim(), email.toLowerCase().trim(), phone || '', hashedPassword, role]
+      [name.trim(), normalizedEmail, phone ? phone.trim() : '', hashedPassword, role]
     );
 
     const userId = result.insertId;
@@ -47,7 +50,7 @@ export const register = async (req, res) => {
       [userId, 'Account registered']
     );
 
-    const user = { id: userId, email: email.toLowerCase(), role };
+    const user = { id: userId, email: normalizedEmail, role };
     const token = generateToken(user);
 
     res.status(201).json({
@@ -57,8 +60,8 @@ export const register = async (req, res) => {
       user: {
         id: userId,
         name: name.trim(),
-        email: email.toLowerCase(),
-        phone: phone || '',
+        email: normalizedEmail,
+        phone: phone ? phone.trim() : '',
         role,
         xp: 0,
         level: 1
@@ -66,7 +69,11 @@ export const register = async (req, res) => {
     });
   } catch (error) {
     console.error('Register Error:', error.message);
-    res.status(500).json({ success: false, message: 'Server error. Please try again.' });
+    const isDev = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      success: false,
+      message: isDev ? `Server error: ${error.message}` : 'Server error. Please try again.'
+    });
   }
 };
 
@@ -119,7 +126,11 @@ export const login = async (req, res) => {
     });
   } catch (error) {
     console.error('Login Error:', error.message);
-    res.status(500).json({ success: false, message: 'Server error. Please try again.' });
+    const isDev = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      success: false,
+      message: isDev ? `Server error: ${error.message}` : 'Server error. Please try again.'
+    });
   }
 };
 
@@ -138,6 +149,10 @@ export const getProfile = async (req, res) => {
     res.json({ success: true, user: rows[0] });
   } catch (error) {
     console.error('Profile Error:', error.message);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    const isDev = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      success: false,
+      message: isDev ? `Server error: ${error.message}` : 'Server error.'
+    });
   }
 };

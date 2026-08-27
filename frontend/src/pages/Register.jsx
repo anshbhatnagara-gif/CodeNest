@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { User, Mail, Lock, Phone, Eye, EyeOff, BookOpen, CheckCircle2, ArrowRight } from 'lucide-react';
@@ -36,9 +36,19 @@ const Register = () => {
     setLoading(true);
     try {
       const data = await register(form);
-      if (data.success) navigate('/dashboard');
+      if (data && data.success) {
+        navigate('/dashboard');
+      } else {
+        setError(data?.message || 'Registration failed. Please try again.');
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Try again.');
+      const backendMessage = err.response?.data?.message;
+      const errorMsg = backendMessage ||
+        (err.message === 'Network Error'
+          ? 'Cannot connect to backend server. Please make sure the backend server is running.'
+          : err.message) ||
+        'Registration failed. Try again.';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }

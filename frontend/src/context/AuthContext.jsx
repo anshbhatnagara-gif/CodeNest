@@ -11,7 +11,10 @@ const api = axios.create({ baseURL: apiBaseUrl });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('cn_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
@@ -21,26 +24,37 @@ export const AuthProvider = ({ children }) => {
 
   const fetchProfile = useCallback(async () => {
     const token = localStorage.getItem('cn_token');
-    if (!token) { setLoading(false); return; }
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     try {
       const { data } = await api.get('/auth/profile');
-      if (data.success) setUser(data.user);
-    } catch {
-      localStorage.removeItem('cn_token');
+      if (data.success && data.user) {
+        setUser(data.user);
+      }
+    } catch (err) {
+      if (err.response?.status === 401) {
+        localStorage.removeItem('cn_token');
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchProfile(); }, [fetchProfile]);
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
 
   const login = async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
     if (data.success) {
       localStorage.setItem('cn_token', data.token);
       setUser(data.user);
+      return data;
     }
-    return data;
+    throw new Error(data.message || 'Login failed.');
   };
 
   const register = async (formData) => {
@@ -48,8 +62,9 @@ export const AuthProvider = ({ children }) => {
     if (data.success) {
       localStorage.setItem('cn_token', data.token);
       setUser(data.user);
+      return data;
     }
-    return data;
+    throw new Error(data.message || 'Registration failed.');
   };
 
   const logout = () => {

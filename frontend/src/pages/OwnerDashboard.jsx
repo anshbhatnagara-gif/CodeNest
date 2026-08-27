@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Users, BookOpen, Clock, Trash2, ShieldAlert, Calendar, Activity, Zap, Search, Eye, X } from 'lucide-react';
+import { Users, BookOpen, Clock, Trash2, ShieldAlert, Calendar, Activity, Zap, Search, Eye, X, FileText } from 'lucide-react';
 
 const OwnerDashboard = () => {
   const { api } = useAuth();
@@ -103,9 +104,18 @@ const OwnerDashboard = () => {
               <p className="text-indigo-200/80 text-sm mt-0.5">Private monitoring & student management</p>
             </div>
           </div>
-          <div className="glass px-4 py-2 text-xs font-bold flex items-center gap-2 self-start md:self-auto">
-            <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-            Owner Portal Active
+          <div className="flex items-center gap-3 self-start md:self-auto flex-wrap">
+            <Link
+              to="/owner-notes"
+              className="bg-white text-indigo-700 hover:bg-indigo-50 px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-95"
+            >
+              <FileText size={15} />
+              Notes Management
+            </Link>
+            <div className="glass px-4 py-2 text-xs font-bold flex items-center gap-2">
+              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+              Owner Portal Active
+            </div>
           </div>
         </div>
       </div>

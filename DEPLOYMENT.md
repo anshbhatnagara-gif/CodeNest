@@ -57,11 +57,50 @@ CORS_ORIGIN=<vercel-production-url>
 *   **SSL Requirement:** Enforced (TLS v1.2 minimum version)
 
 ### Migrations & Schema Deployment
-Tables (`users`, `courses`, `modules`, `enrollments`, `progress`, `activity_logs`) were initialized and seeded with 10 free courses and modules using the automated script:
+Tables (`users`, `courses`, `modules`, `enrollments`, `progress`, `activity_logs`, `notes`) are managed and seeded using the automated migration scripts:
 ```bash
 node backend/scripts/migrate.js
+node backend/scripts/test_notes_flow.js
 ```
-The migration script connects directly to the TiDB cluster using secure SSL connections and reads queries from `backend/sql/schema.sql` and `backend/sql/seed.sql` sequentially.
+The migration script connects directly to the TiDB cluster using secure SSL connections and reads queries from `backend/sql/schema.sql` and `backend/sql/add_notes_table.sql`.
+
+---
+
+## 📝 3. Notes Management System Architecture
+
+The **Notes Management System** enables Course Owners to create, manage, and attach downloadable study materials (PDFs, DOCX, PPTX, TXT, images) to courses and modules, and allows students to access published study materials.
+
+### Notes Database Table (`notes`)
+* `id` (INT, Primary Key, Auto Increment)
+* `title` (VARCHAR 255, NOT NULL)
+* `description` (TEXT)
+* `content` (LONGTEXT — markdown/text lecture notes)
+* `course_id` (INT, Foreign Key -> `courses.id` ON DELETE CASCADE)
+* `module_id` (INT, NULLABLE, Foreign Key -> `modules.id` ON DELETE SET NULL)
+* `file_url` (VARCHAR 1000 — relative/cloud URL to attachment)
+* `file_name` (VARCHAR 255 — original uploaded filename)
+* `file_type` (VARCHAR 50 — formatted extension e.g. PDF, DOCX, TXT)
+* `file_size` (INT — file size in bytes)
+* `status` (ENUM('draft', 'published'), default 'draft')
+* `created_by` (INT, Foreign Key -> `users.id` ON DELETE CASCADE)
+* `created_at` / `updated_at` (TIMESTAMP)
+
+### API Endpoints
+* **Student / Public**:
+  * `GET /api/notes?course_id={id}&module_id={id}&search={query}` — Fetch published notes
+  * `GET /api/notes/:id` — Fetch single note detail
+* **Owner Management** (`authMiddleware` + `ownerMiddleware`):
+  * `GET /api/owner/notes` — Fetch all notes (draft + published) with summary statistics
+  * `POST /api/owner/notes` — Create note (supports `multipart/form-data` with `file`)
+  * `PUT /api/owner/notes/:id` — Update note and/or replace attached file
+  * `PATCH /api/owner/notes/:id/status` — Toggle/update publish status (`draft` / `published`)
+  * `DELETE /api/owner/notes/:id` — Delete note and cleanup stored file
+
+### Storage & Upload Limits
+* **Local Development**: Uploaded files stored in `backend/uploads/notes/` and served via static route `/uploads`.
+* **Allowed Formats**: `.pdf`, `.doc`, `.docx`, `.ppt`, `.pptx`, `.txt`, `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`
+* **Size Limit**: Default 25MB (configurable via `MAX_NOTE_FILE_SIZE_MB` env variable).
+
 
 ---
 

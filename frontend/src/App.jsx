@@ -17,6 +17,7 @@ import Dashboard from './pages/Dashboard';
 import MyLearning from './pages/MyLearning';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import OwnerDashboard from './pages/OwnerDashboard';
+import OwnerNotes from './pages/OwnerNotes';
 
 // Scroll to top on route change
 const ScrollToTop = () => {
@@ -96,6 +97,14 @@ const App = () => {
               element={
                 <ProtectedRoute ownerOnly={true}>
                   <OwnerDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/owner-notes"
+              element={
+                <ProtectedRoute ownerOnly={true}>
+                  <OwnerNotes />
                 </ProtectedRoute>
               }
             />

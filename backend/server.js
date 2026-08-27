@@ -3,15 +3,26 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { connectDB } from './config/db.js';
 
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 import authRoutes from './routes/authRoutes.js';
 import courseRoutes from './routes/courseRoutes.js';
 import progressRoutes from './routes/progressRoutes.js';
 import ownerRoutes from './routes/ownerRoutes.js';
+import notesRoutes from './routes/notesRoutes.js';
+import ownerNotesRoutes from './routes/ownerNotesRoutes.js';
 
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Static Uploads Directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Middleware
 const configuredOrigins = [
@@ -62,6 +73,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/owner', ownerRoutes);
+app.use('/api/notes', notesRoutes);
+app.use('/api/owner/notes', ownerNotesRoutes);
 
 // 404 Handler
 app.use((req, res) => {

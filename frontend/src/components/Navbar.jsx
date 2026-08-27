@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, LayoutDashboard, GraduationCap, LogOut, LogIn, Menu, X, BookMarked, Shield } from 'lucide-react';
+import { BookOpen, LayoutDashboard, GraduationCap, LogOut, LogIn, Menu, X, BookMarked, Shield, FileText } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 const Navbar = () => {
@@ -19,6 +19,8 @@ const Navbar = () => {
   useEffect(() => { setMenuOpen(false); }, [location.pathname]);
 
   const isActive = (path) => location.pathname === path;
+
+  const isOwner = user && (user.role === 'owner' || user.email?.toLowerCase() === 'anshbhatnagara@gmail.com');
 
   const navLink = (to, label, icon) => (
     <Link
@@ -64,7 +66,8 @@ const Navbar = () => {
             {user && navLink('/courses', 'Courses', <BookMarked size={15} />)}
             {user && navLink('/dashboard', 'Dashboard', <LayoutDashboard size={15} />)}
             {user && navLink('/my-learning', 'My Learning', <GraduationCap size={15} />)}
-            {user && (user.role === 'owner' || user.email?.toLowerCase() === 'anshbhatnagara@gmail.com') && navLink('/owner-dashboard', 'Owner Dashboard', <Shield size={15} />)}
+            {isOwner && navLink('/owner-notes', 'Notes', <FileText size={15} />)}
+            {isOwner && navLink('/owner-dashboard', 'Owner Dashboard', <Shield size={15} />)}
           </div>
 
           {/* Right Actions */}
@@ -124,7 +127,8 @@ const Navbar = () => {
             {user && navLink('/courses', 'Courses', <BookMarked size={15} />)}
             {user && navLink('/dashboard', 'Dashboard', <LayoutDashboard size={15} />)}
             {user && navLink('/my-learning', 'My Learning', <GraduationCap size={15} />)}
-            {user && (user.role === 'owner' || user.email?.toLowerCase() === 'anshbhatnagara@gmail.com') && navLink('/owner-dashboard', 'Owner Dashboard', <Shield size={15} />)}
+            {isOwner && navLink('/owner-notes', 'Notes', <FileText size={15} />)}
+            {isOwner && navLink('/owner-dashboard', 'Owner Dashboard', <Shield size={15} />)}
             {user ? (
               <button
                 onClick={() => { logout(); setMenuOpen(false); }}

@@ -16,3 +16,6 @@ backups/
 backups/*.sql
 cloud_run_env.txt
 render_env.txt
+uploads/
+backend/uploads/*
+!backend/uploads/.gitkeep

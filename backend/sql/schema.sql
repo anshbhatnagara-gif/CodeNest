@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   phone VARCHAR(20) DEFAULT '',
   password VARCHAR(255) NOT NULL,
   role ENUM('student', 'owner') DEFAULT 'student',
+  token_version INT NOT NULL DEFAULT 1,
   xp INT DEFAULT 0,
   level INT DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -87,6 +88,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
 
 -- =============================================
 -- TABLE: notes
+
 -- =============================================
 CREATE TABLE IF NOT EXISTS notes (
   id INT PRIMARY KEY AUTO_INCREMENT,
@@ -94,6 +96,8 @@ CREATE TABLE IF NOT EXISTS notes (
   description TEXT,
   content LONGTEXT,
   course_id INT NOT NULL,
+
+
   module_id INT NULL,
   file_url VARCHAR(1000) NULL,
   file_name VARCHAR(255) NULL,
@@ -106,9 +110,9 @@ CREATE TABLE IF NOT EXISTS notes (
   FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
   FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE SET NULL,
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+
   INDEX idx_notes_course (course_id),
   INDEX idx_notes_module (module_id),
   INDEX idx_notes_status (status),
   INDEX idx_notes_created_by (created_by)
 );
-

@@ -21,18 +21,109 @@ const formatFileType = (fileName, mimeType) => {
   return 'FILE';
 };
 
-const deleteLocalFile = (fileUrl) => {
-  if (!fileUrl) return;
+/**
+ * Hardened local file deletion helper (SEC-05)
+ * Safely deletes note attachment files strictly within backend/uploads/notes.
+ * Defensively rejects:
+ * - non-string, null, undefined, empty, or whitespace-only inputs
+ * - traversal sequences (../, ..\\)
+ * - Windows backslashes, drive-letter paths (C:), UNC paths (\\\\, //)
+ * - encoded path characters (%2e, etc.) and NULL bytes
+ * - unexpected URL schemes (http:, file:) or formats outside /uploads/notes/<filename>
+ * - dotfiles (.env, .git)
+ * - paths targeting directories, symlinks, or sibling directories sharing a prefix
+ */
+export const deleteLocalFile = (fileUrl) => {
+  if (typeof fileUrl !== 'string') return false;
+  const trimmedUrl = fileUrl.trim();
+  if (!trimmedUrl) return false;
+
   try {
-    const relativePath = fileUrl.replace(/^\/uploads\//, '');
-    const absolutePath = path.join(__dirname, '..', 'uploads', relativePath);
-    if (fs.existsSync(absolutePath)) {
-      fs.unlinkSync(absolutePath);
+    // 1. Defensively reject path traversal indicators, backslashes, drive letters, UNC, NULL bytes, URL schemes
+    if (
+      trimmedUrl.includes('..') ||
+      trimmedUrl.includes('\\') ||
+      trimmedUrl.includes('\0') ||
+      trimmedUrl.includes('%') ||
+      /^[a-zA-Z]:/.test(trimmedUrl) ||
+      trimmedUrl.startsWith('//') ||
+      /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmedUrl)
+    ) {
+      return false;
     }
+
+    // 2. Reject unexpected URL formats; accept only the expected /uploads/notes/<filename> format
+    const expectedPrefix = '/uploads/notes/';
+    if (!trimmedUrl.startsWith(expectedPrefix)) {
+      return false;
+    }
+
+    const fileName = trimmedUrl.slice(expectedPrefix.length);
+    // Filename must not be empty, must not contain separators, and cannot be a dotfile
+    if (!fileName || fileName.includes('/') || fileName.includes('\\')) {
+      return false;
+    }
+
+    // Enforce safe filename pattern matching Multer upload conventions
+    // Must begin with an alphanumeric character or underscore/dash, followed by safe characters, no dotfiles
+    if (!/^[a-zA-Z0-9_-][a-zA-Z0-9_.-]*$/.test(fileName)) {
+      return false;
+    }
+
+    // 3. Resolve intended upload directory
+    const uploadDir = path.resolve(__dirname, '..', 'uploads', 'notes');
+
+    // 4. Resolve candidate file path
+    const candidatePath = path.resolve(uploadDir, fileName);
+
+    // 5. Enforce separator-aware containment check to prevent sibling directory prefix matching
+    const uploadDirWithSep = uploadDir.endsWith(path.sep) ? uploadDir : uploadDir + path.sep;
+    if (!candidatePath.startsWith(uploadDirWithSep)) {
+      return false;
+    }
+
+    // Relative check for defense-in-depth
+    const rel = path.relative(uploadDir, candidatePath);
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel) || rel.includes(path.sep)) {
+      return false;
+    }
+
+    // 6. Verify filesystem existence
+    if (!fs.existsSync(candidatePath)) {
+      return false;
+    }
+
+    // 7. Check file attributes via lstat (does NOT follow symlinks)
+    const lstat = fs.lstatSync(candidatePath);
+
+    // Conservative symlink handling: refuse to delete or follow symbolic links
+    if (lstat.isSymbolicLink()) {
+      return false;
+    }
+
+    // Target must strictly be a regular file, not a directory or other special file
+    if (!lstat.isFile()) {
+      return false;
+    }
+
+    // 8. Canonical realpath verification
+    const realUploadDir = fs.realpathSync(uploadDir);
+    const realCandidatePath = fs.realpathSync(candidatePath);
+    const realUploadDirWithSep = realUploadDir.endsWith(path.sep) ? realUploadDir : realUploadDir + path.sep;
+
+    if (!realCandidatePath.startsWith(realUploadDirWithSep)) {
+      return false;
+    }
+
+    // 9. Safely delete legitimate file
+    fs.unlinkSync(candidatePath);
+    return true;
   } catch (err) {
     console.error('Error removing local file:', err.message);
+    return false;
   }
 };
+
 
 // =========================================================================
 // STUDENT & PUBLIC ENDPOINTS
@@ -126,6 +217,62 @@ export const getNoteById = async (req, res) => {
   } catch (error) {
     console.error('Get Note By ID Error:', error.message);
     res.status(500).json({ success: false, message: 'Server error fetching note detail.' });
+  }
+};
+
+// GET /api/notes/:id/download (Authenticated File Download)
+export const downloadNoteFile = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized. Authentication required.' });
+    }
+
+    const [rows] = await pool.execute(
+      'SELECT id, title, file_url, file_name, status FROM notes WHERE id = ?',
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Note not found.' });
+    }
+
+    const note = rows[0];
+
+    if (!note.file_url) {
+      return res.status(404).json({ success: false, message: 'No file attachment found for this note.' });
+    }
+
+    const configuredOwnerEmail = (process.env.OWNER_EMAIL || '').trim().toLowerCase();
+    const userEmail = typeof req.user.email === 'string' ? req.user.email.trim().toLowerCase() : '';
+    const isOwner = req.user.role === 'owner' && configuredOwnerEmail && userEmail === configuredOwnerEmail;
+
+    // Students can only download files belonging to published notes
+    if (note.status !== 'published' && !isOwner) {
+      return res.status(403).json({ success: false, message: 'Forbidden. Attachment unavailable or draft note.' });
+    }
+
+    // Secure resolution of local file path within uploadDir
+    const uploadDir = path.resolve(__dirname, '..', 'uploads', 'notes');
+    const relativePath = note.file_url.replace(/^\/uploads\/notes\//, '').replace(/^\/uploads\//, '');
+    const fileName = path.basename(relativePath);
+
+    // Prevent path traversal
+    const absolutePath = path.resolve(uploadDir, fileName);
+    if (!absolutePath.startsWith(uploadDir)) {
+      return res.status(400).json({ success: false, message: 'Invalid file path.' });
+    }
+
+    if (!fs.existsSync(absolutePath)) {
+      return res.status(404).json({ success: false, message: 'File not found on server.' });
+    }
+
+    const downloadName = note.file_name || fileName;
+    res.download(absolutePath, downloadName);
+  } catch (error) {
+    console.error('Download Note File Error:', error.message);
+    res.status(500).json({ success: false, message: 'Server error downloading note file.' });
   }
 };
 

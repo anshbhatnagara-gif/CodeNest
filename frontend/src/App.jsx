@@ -40,6 +40,8 @@ const App = () => {
             <Route path="/" element={<Welcome />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/courses" element={<Courses />} />
+            <Route path="/courses/:id" element={<CourseDetail />} />
 
             {/* Student Protected Routes */}
             <Route
@@ -47,22 +49,6 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <Home />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/courses"
-              element={
-                <ProtectedRoute>
-                  <Courses />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/courses/:id"
-              element={
-                <ProtectedRoute>
-                  <CourseDetail />
                 </ProtectedRoute>
               }
             />

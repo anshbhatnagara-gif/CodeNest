@@ -17,8 +17,8 @@ const Register = () => {
   const getStrength = (pwd) => {
     if (!pwd) return { level: 0, label: '', color: '' };
     let score = 0;
-    if (pwd.length >= 6) score++;
     if (pwd.length >= 8) score++;
+    if (pwd.length >= 10) score++;
     if (/[A-Z]/.test(pwd)) score++;
     if (/[0-9]/.test(pwd)) score++;
     if (/[^A-Za-z0-9]/.test(pwd)) score++;
@@ -32,10 +32,30 @@ const Register = () => {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
-    if (form.password.length < 6) return setError('Password must be at least 6 characters.');
+
+    const trimmedName = form.name.trim();
+    if (!trimmedName) {
+      return setError('Name is required.');
+    }
+
+    const normalizedEmail = form.email.toLowerCase().trim();
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!normalizedEmail || !EMAIL_REGEX.test(normalizedEmail)) {
+      return setError('Please enter a valid email address.');
+    }
+
+    if (form.password.length < 8) return setError('Password must be at least 8 characters.');
+
+    const payload = {
+      name: trimmedName,
+      email: normalizedEmail,
+      phone: form.phone ? form.phone.trim() : '',
+      password: form.password
+    };
+
     setLoading(true);
     try {
-      const data = await register(form);
+      const data = await register(payload);
       if (data && data.success) {
         navigate('/dashboard');
       } else {
@@ -69,15 +89,15 @@ const Register = () => {
             <span className="text-xl font-bold">Code<span className="text-gradient">Nest</span></span>
           </Link>
           <h1 className="text-2xl font-extrabold text-gray-900 mt-6">Create Free Account</h1>
-          <p className="text-gray-500 text-sm mt-1.5">Start your coding journey today â€” it's 100% free</p>
+          <p className="text-gray-500 text-sm mt-1.5">Start your coding journey today — it's 100% free</p>
         </div>
 
         {/* Perks - cards style */}
         <div className="flex justify-center gap-3 mb-7">
           {[
-            { text: 'No credit card', icon: 'ðŸ’³' },
-            { text: 'Free forever', icon: 'ðŸŽ¯' },
-            { text: '10+ courses', icon: 'ðŸ“š' },
+            { text: 'No credit card', icon: '💳' },
+            { text: 'Free forever', icon: '🎯' },
+            { text: '10+ courses', icon: '📚' },
           ].map(t => (
             <div key={t.text} className="flex items-center gap-1.5 bg-white border border-gray-100 rounded-full px-3 py-1.5 text-[11px] text-gray-600 font-medium shadow-sm">
               <span>{t.icon}</span> {t.text}
@@ -129,7 +149,7 @@ const Register = () => {
                   value={form.password}
                   onChange={handle}
                   required
-                  placeholder="Min. 6 characters"
+                  placeholder="Min. 8 characters"
                   className="input pl-10 pr-10"
                 />
                 <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
@@ -159,7 +179,7 @@ const Register = () => {
               {loading ? (
                 <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Creating Account...</>
               ) : (
-                'Create Free Account ðŸš€'
+                'Create Free Account 🚀'
               )}
             </button>
           </form>
@@ -186,4 +206,5 @@ const Register = () => {
 };
 
 export default Register;
+
 

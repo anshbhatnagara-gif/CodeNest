@@ -18,6 +18,42 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+let isRedirecting = false;
+
+export const handleAuthResponseError = (error) => {
+  const status = error.response?.status;
+  const url = error.config?.url || '';
+
+  // Auth endpoints (login, register, logout, and profile) handle their own errors and session state
+  const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/logout') || url.includes('/auth/profile');
+
+  if (status === 401 && !isAuthEndpoint) {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.removeItem('cn_token');
+    }
+
+    const currentPath = typeof window !== 'undefined' && window.location ? window.location.pathname : '';
+    const isAuthPage = currentPath === '/login' || currentPath === '/register';
+
+    if (!isAuthPage && !isRedirecting) {
+      isRedirecting = true;
+      setTimeout(() => {
+        isRedirecting = false;
+      }, 2000);
+      if (typeof window !== 'undefined' && window.location) {
+        window.location.href = '/login';
+      }
+    }
+  }
+
+  return Promise.reject(error);
+};
+
+api.interceptors.response.use(
+  (response) => response,
+  handleAuthResponseError
+);
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -67,9 +103,15 @@ export const AuthProvider = ({ children }) => {
     throw new Error(data.message || 'Registration failed.');
   };
 
-  const logout = () => {
-    localStorage.removeItem('cn_token');
-    setUser(null);
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (err) {
+      console.warn('Server logout notice:', err.response?.data?.message || err.message);
+    } finally {
+      localStorage.removeItem('cn_token');
+      setUser(null);
+    }
   };
 
   return (

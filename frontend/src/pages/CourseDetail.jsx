@@ -38,14 +38,6 @@ const getFileTypeBadge = (fileType) => {
   return 'bg-indigo-50 text-indigo-700 border-indigo-200';
 };
 
-const getBackendFileUrl = (url) => {
-  if (!url) return '';
-  if (url.startsWith('http')) return url;
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-  const baseUrl = apiUrl.replace(/\/api$/, '');
-  return `${baseUrl}${url}`;
-};
-
 const CourseDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
@@ -57,6 +49,40 @@ const CourseDetail = () => {
   const [message, setMessage] = useState(null);
   const [selectedNote, setSelectedNote] = useState(null);
   const [activeTab, setActiveTab] = useState('curriculum'); // 'curriculum' | 'notes'
+  const [downloadingNoteId, setDownloadingNoteId] = useState(null);
+
+  const handleDownloadFile = async (note) => {
+    if (!note || !note.id) return;
+    setDownloadingNoteId(note.id);
+    try {
+      const response = await api.get(`/notes/${note.id}/download`, {
+        responseType: 'blob'
+      });
+
+      let fileName = note.file_name || 'download';
+      const disposition = response.headers['content-disposition'];
+      if (disposition && disposition.includes('filename=')) {
+        const match = disposition.match(/filename="?([^";]+)"?/);
+        if (match && match[1]) {
+          fileName = match[1];
+        }
+      }
+
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('File download error:', err);
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to download file. Please login and try again.' });
+    } finally {
+      setDownloadingNoteId(null);
+    }
+  };
 
   const fetchCourseData = async () => {
     try {
@@ -391,16 +417,18 @@ const CourseDetail = () => {
                           Read Note
                         </button>
                         {note.file_url && (
-                          <a
-                            href={getBackendFileUrl(note.file_url)}
-                            target="_blank"
-                            rel="noreferrer"
-                            download
-                            className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-1.5 active:scale-95"
+                          <button
+                            onClick={() => handleDownloadFile(note)}
+                            disabled={downloadingNoteId === note.id}
+                            className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
                           >
-                            <Download size={13} />
+                            {downloadingNoteId === note.id ? (
+                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Download size={13} />
+                            )}
                             Download
-                          </a>
+                          </button>
                         )}
                       </div>
                     </div>
@@ -450,16 +478,18 @@ const CourseDetail = () => {
                       <p className="text-[11px] text-gray-400">{formatBytes(selectedNote.file_size)}</p>
                     </div>
                   </div>
-                  <a
-                    href={getBackendFileUrl(selectedNote.file_url)}
-                    target="_blank"
-                    rel="noreferrer"
-                    download
-                    className="btn-primary text-xs py-2 px-3.5 flex items-center gap-1.5 flex-shrink-0"
+                  <button
+                    onClick={() => handleDownloadFile(selectedNote)}
+                    disabled={downloadingNoteId === selectedNote.id}
+                    className="btn-primary text-xs py-2 px-3.5 flex items-center gap-1.5 flex-shrink-0 disabled:opacity-50"
                   >
-                    <Download size={13} />
+                    {downloadingNoteId === selectedNote.id ? (
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Download size={13} />
+                    )}
                     Download File
-                  </a>
+                  </button>
                 </div>
               )}
 

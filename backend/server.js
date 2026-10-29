@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { connectDB } from './config/db.js';
+import corsOptions from './middleware/corsConfig.js';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -21,45 +23,36 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Static Uploads Directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Trust Proxy Configuration for cloud hosting (Render / Vercel proxies)
+const trustProxySetting = process.env.TRUST_PROXY;
+if (trustProxySetting === 'true' || trustProxySetting === '1') {
+  app.set('trust proxy', 1);
+} else if (trustProxySetting && !isNaN(parseInt(trustProxySetting, 10))) {
+  app.set('trust proxy', parseInt(trustProxySetting, 10));
+} else if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 
-// Middleware
-const configuredOrigins = [
-  process.env.FRONTEND_URL,
-  process.env.CORS_ORIGIN
-].filter(Boolean);
-
-const isAllowedOrigin = (origin) => {
-  if (!origin) return true;
-  // Allow all localhost and 127.0.0.1 ports (5173, 5174, 3000, etc.)
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-    return true;
-  }
-  // Allow explicitly configured origins
-  if (configuredOrigins.includes(origin)) {
-    return true;
-  }
-  // Allow Vercel preview/production deployments
-  if (origin.endsWith('.vercel.app')) {
-    return true;
-  }
-  return false;
-};
-
-app.use(cors({
-  origin: function(origin, callback) {
-    if (isAllowedOrigin(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`Blocked CORS request from origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+// Helmet Security Headers
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        connectSrc: ["'self'", 'https:', 'http:']
+      }
     }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  })
+);
+
+// Static Uploads Directory removed for security. All attachment downloads are handled via authenticated /api/notes/:id/download.
+
+// CORS Middleware
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -78,13 +71,18 @@ app.use('/api/owner/notes', ownerNotesRoutes);
 
 // 404 Handler
 app.use((req, res) => {
+
   res.status(404).json({ success: false, message: 'Route not found.' });
 });
 
 // Global Error Handler
 app.use((err, req, res, next) => {
   console.error('Unhandled Error:', err.message);
-  res.status(500).json({ success: false, message: 'Internal server error.' });
+  const isDev = process.env.NODE_ENV === 'development';
+  res.status(500).json({
+    success: false,
+    message: isDev ? `Server error: ${err.message}` : 'Internal server error.'
+  });
 });
 
 // Start Server

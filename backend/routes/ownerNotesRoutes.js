@@ -8,7 +8,7 @@ import {
 } from '../controllers/notesController.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 import ownerMiddleware from '../middleware/ownerMiddleware.js';
-import { noteUpload, handleUploadError } from '../middleware/uploadMiddleware.js';
+import { noteUpload, handleUploadError, validateFileContent } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -19,16 +19,16 @@ router.use(authMiddleware, ownerMiddleware);
 router.get('/', getOwnerNotes);
 
 // POST /api/owner/notes (Create note with optional file)
-router.post('/', noteUpload.single('file'), handleUploadError, createNote);
+router.post('/', noteUpload.single('file'), handleUploadError, validateFileContent, createNote);
 
 // PUT /api/owner/notes/:id (Update note metadata & optional file)
-router.put('/:id', noteUpload.single('file'), handleUploadError, updateNote);
+router.put('/:id', noteUpload.single('file'), handleUploadError, validateFileContent, updateNote);
 
 // PATCH /api/owner/notes/:id/status (Toggle publish/draft)
 router.patch('/:id/status', updateNoteStatus);
 
 // POST /api/owner/notes/:id/upload (Dedicated file upload)
-router.post('/:id/upload', noteUpload.single('file'), handleUploadError, updateNote);
+router.post('/:id/upload', noteUpload.single('file'), handleUploadError, validateFileContent, updateNote);
 
 // DELETE /api/owner/notes/:id (Delete note & file)
 router.delete('/:id', deleteNote);

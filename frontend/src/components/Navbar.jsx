@@ -20,7 +20,7 @@ const Navbar = () => {
 
   const isActive = (path) => location.pathname === path;
 
-  const isOwner = user && (user.role === 'owner' || user.email?.toLowerCase() === 'anshbhatnagara@gmail.com');
+  const isOwner = user && user.role === 'owner';
 
   const navLink = (to, label, icon) => (
     <Link
@@ -63,7 +63,7 @@ const Navbar = () => {
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-1">
             {user && navLink('/home', 'Home', <BookOpen size={15} />)}
-            {user && navLink('/courses', 'Courses', <BookMarked size={15} />)}
+            {navLink('/courses', 'Courses', <BookMarked size={15} />)}
             {user && navLink('/dashboard', 'Dashboard', <LayoutDashboard size={15} />)}
             {user && navLink('/my-learning', 'My Learning', <GraduationCap size={15} />)}
             {isOwner && navLink('/owner-notes', 'Notes', <FileText size={15} />)}
@@ -124,7 +124,7 @@ const Navbar = () => {
         {menuOpen && (
           <div className="md:hidden py-3 border-t border-gray-100 space-y-1 animate-slideDown overflow-hidden">
             {user && navLink('/home', 'Home', <BookOpen size={15} />)}
-            {user && navLink('/courses', 'Courses', <BookMarked size={15} />)}
+            {navLink('/courses', 'Courses', <BookMarked size={15} />)}
             {user && navLink('/dashboard', 'Dashboard', <LayoutDashboard size={15} />)}
             {user && navLink('/my-learning', 'My Learning', <GraduationCap size={15} />)}
             {isOwner && navLink('/owner-notes', 'Notes', <FileText size={15} />)}

@@ -44,7 +44,7 @@
 * **Notes & Study Material:** View published lesson notes and securely download course attachments (PDF, DOCX, PPTX, images).
 * **Personalized Dashboard:** Track enrolled courses, completion rates, overall XP progress, and active learning statistics.
    
-   
+
 ### Academy Owner Administration
 * **Academy Analytics:** Real-time dashboard tracking total registered students, course enrollments, completion metrics, and 24h/7d student regularity.
 * **Course Management:** Full CRUD operations for courses, including draft/published toggling and deletion protection against active enrollments.

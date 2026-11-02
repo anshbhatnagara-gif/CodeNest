@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
-
+ 
 const poolConfig = {
   host: process.env.DB_HOST,
   port: parseInt(process.env.DB_PORT || '3306', 10),

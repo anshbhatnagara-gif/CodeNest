@@ -42,7 +42,7 @@ const ScrollToTop = () => {
   }, [pathname]);
   return null;
 };
-
+   
 const App = () => {
   return (
     <AuthProvider>

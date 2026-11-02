@@ -2,9 +2,13 @@
   "name": "codenest-root",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
-    "start": "node backend/server.js",
-    "build": "echo 'No build step required'"
+    "start": "npm --prefix backend start",
+    "build": "npm --prefix backend install",
+    "test": "npm --prefix backend test"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

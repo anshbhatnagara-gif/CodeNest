@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: codenest-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "4000"
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        value: codenest_free_academy
+      - key: DB_SSL
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OWNER_EMAIL
+        value: anshbhatnagara@gmail.com
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: TRUST_PROXY
+        value: "1"
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: MAX_NOTE_FILE_SIZE_MB
+        value: "25"
+

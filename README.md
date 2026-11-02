@@ -12,14 +12,6 @@
 
 ---
 
-## Live Deployment
-
-- **Live Website:** [https://coding-academy-pro-free-course.vercel.app](https://coding-academy-pro-free-course.vercel.app)
-- **Backend API:** [https://coding-academy-pro-free-coursecodenest-idle.onrender.com](https://coding-academy-pro-free-coursecodenest-idle.onrender.com)
-- **Health Check:** [https://coding-academy-pro-free-coursecodenest-idle.onrender.com/api/health](https://coding-academy-pro-free-coursecodenest-idle.onrender.com/api/health)
-- **Courses API:** [https://coding-academy-pro-free-coursecodenest-idle.onrender.com/api/courses](https://coding-academy-pro-free-coursecodenest-idle.onrender.com/api/courses)
-- **Deployment Documentation:** [DEPLOYMENT_AND_HOSTING.md](DEPLOYMENT_AND_HOSTING.md)
-
 **Architecture Flow:**
 User → Vercel Frontend → Render Backend → TiDB Cloud
 

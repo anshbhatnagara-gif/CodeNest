@@ -1,23 +1,38 @@
-import React from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import ErrorBoundary from './components/ErrorBoundary';
 
-// Pages
-import Home from './pages/Home';
-import Welcome from './pages/Welcome';
-import Courses from './pages/Courses';
-import CourseDetail from './pages/CourseDetail';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import MyLearning from './pages/MyLearning';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import OwnerDashboard from './pages/OwnerDashboard';
-import OwnerNotes from './pages/OwnerNotes';
+// Lazy-loaded Route Components for Code Splitting
+const Welcome = lazy(() => import('./pages/Welcome'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const Courses = lazy(() => import('./pages/Courses'));
+const CourseDetail = lazy(() => import('./pages/CourseDetail'));
+
+const Home = lazy(() => import('./pages/Home'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const MyLearning = lazy(() => import('./pages/MyLearning'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+
+const OwnerDashboard = lazy(() => import('./pages/OwnerDashboard'));
+const OwnerCourses = lazy(() => import('./pages/OwnerCourses'));
+const OwnerModules = lazy(() => import('./pages/OwnerModules'));
+
+const OwnerNotes = lazy(() => import('./pages/OwnerNotes'));
+
+// Consistent Page-Level Loading Fallback
+const PageLoader = () => (
+  <div className="min-h-[60vh] flex items-center justify-center">
+    <div className="text-center space-y-3">
+      <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
+      <p className="text-xs text-gray-400 font-medium tracking-wide">Loading page...</p>
+    </div>
+  </div>
+);
 
 // Scroll to top on route change
 const ScrollToTop = () => {
@@ -35,69 +50,89 @@ const App = () => {
         <ScrollToTop />
         <Navbar />
         <main className="flex-grow">
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<Welcome />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/courses" element={<Courses />} />
-            <Route path="/courses/:id" element={<CourseDetail />} />
+          <ErrorBoundary>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<Welcome />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/courses" element={<Courses />} />
+              <Route path="/courses/:id" element={<CourseDetail />} />
 
-            {/* Student Protected Routes */}
-            <Route
-              path="/home"
-              element={
-                <ProtectedRoute>
-                  <Home />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/privacy-policy"
-              element={
-                <ProtectedRoute>
-                  <PrivacyPolicy />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/my-learning"
-              element={
-                <ProtectedRoute>
-                  <MyLearning />
-                </ProtectedRoute>
-              }
-            />
+              {/* Student Protected Routes */}
+              <Route
+                path="/home"
+                element={
+                  <ProtectedRoute>
+                    <Home />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/privacy-policy"
+                element={
+                  <ProtectedRoute>
+                    <PrivacyPolicy />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/my-learning"
+                element={
+                  <ProtectedRoute>
+                    <MyLearning />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* Owner Protected Routes */}
-            <Route
-              path="/owner-dashboard"
-              element={
-                <ProtectedRoute ownerOnly={true}>
-                  <OwnerDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/owner-notes"
-              element={
-                <ProtectedRoute ownerOnly={true}>
-                  <OwnerNotes />
-                </ProtectedRoute>
-              }
-            />
+              {/* Owner Protected Routes */}
+              <Route
+                path="/owner-dashboard"
+                element={
+                  <ProtectedRoute ownerOnly={true}>
+                    <OwnerDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/owner-courses"
+                element={
+                  <ProtectedRoute ownerOnly={true}>
+                    <OwnerCourses />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/owner-courses/:courseId/modules"
+                element={
+                  <ProtectedRoute ownerOnly={true}>
+                    <OwnerModules />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/owner-notes"
+                element={
+                  <ProtectedRoute ownerOnly={true}>
+                    <OwnerNotes />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+          </ErrorBoundary>
         </main>
         <Footer />
       </div>

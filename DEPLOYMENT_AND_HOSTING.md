@@ -16,6 +16,7 @@
 - TiDB Cloud stores users, courses, modules, enrollments and progress
 - Frontend sends HTTPS API requests to Render
 - Render connects securely to TiDB using SSL
+
 - GitHub main branch triggers deployments
 
 ## Architecture Flowchart

@@ -62,7 +62,14 @@ const Dashboard = () => {
             <span className="font-medium">Level {user?.level || 1}</span>
             <span>{(user?.xp || 0) % 500} / 500 XP to Level {(user?.level || 1) + 1}</span>
           </div>
-          <div className="h-2.5 bg-white/15 rounded-full overflow-hidden">
+          <div
+            className="h-2.5 bg-white/15 rounded-full overflow-hidden"
+            role="progressbar"
+            aria-valuenow={Math.round(((user?.xp || 0) % 500) / 500 * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`XP Progress: ${(user?.xp || 0) % 500} of 500 XP to next level`}
+          >
             <div
               className="h-full bg-gradient-to-r from-white/90 to-yellow-200/90 rounded-full transition-all duration-700 animate-pulseGlow"
               style={{ width: `${((user?.xp || 0) % 500) / 500 * 100}%` }}

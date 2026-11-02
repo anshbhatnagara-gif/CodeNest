@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Users, BookOpen, Clock, Trash2, ShieldAlert, Calendar, Activity, Zap, Search, Eye, X, FileText } from 'lucide-react';
+import { 
+  Users, BookOpen, Clock, Trash2, ShieldAlert, Calendar, 
+  Activity, Zap, Search, Eye, X, FileText,
+  AlertTriangle, RefreshCw
+} from 'lucide-react';
+import Toast from '../components/Toast';
+import useEscapeKey from '../hooks/useEscapeKey';
 
 const OwnerDashboard = () => {
   const { api } = useAuth();
@@ -13,6 +19,17 @@ const OwnerDashboard = () => {
   const [filterStatus, setFilterStatus] = useState('All');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [viewLoading, setViewLoading] = useState(false);
+
+  // In-app modal and toast feedback
+  const [deleteModalStudent, setDeleteModalStudent] = useState(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  // Handle Escape key to close modal or student preview
+  useEscapeKey(() => {
+    if (deleteModalStudent && !deleteSubmitting) setDeleteModalStudent(null);
+    if (selectedStudent) setSelectedStudent(null);
+  }, Boolean(deleteModalStudent || selectedStudent));
 
   const fetchDashboardData = async () => {
     try {
@@ -46,24 +63,34 @@ const OwnerDashboard = () => {
       }
     } catch (e) {
       console.error(e);
-      alert('Error fetching student details.');
+      setToast({ type: 'error', message: 'Error fetching student details.' });
     } finally {
       setViewLoading(false);
     }
   };
 
-  const handleStudentDelete = async (id, name) => {
-    if (!window.confirm(`Are you sure you want to permanently delete student "${name}"?`)) return;
+  const handleStudentDelete = (id, name) => {
+    setDeleteModalStudent({ id, name });
+  };
+
+  const handleConfirmStudentDelete = async () => {
+    if (!deleteModalStudent) return;
+    setDeleteSubmitting(true);
     try {
-      const { data } = await api.delete(`/owner/students/${id}`);
+      const { data } = await api.delete(`/owner/students/${deleteModalStudent.id}`);
       if (data.success) {
-        alert(data.message);
+        setToast({ type: 'success', message: data.message || 'Student account deleted successfully.' });
         fetchDashboardData();
-        if (selectedStudent?.id === id) setSelectedStudent(null);
+        if (selectedStudent?.id === deleteModalStudent.id) setSelectedStudent(null);
+        setDeleteModalStudent(null);
+      } else {
+        setToast({ type: 'error', message: data.message || 'Delete failed.' });
       }
     } catch (e) {
       console.error(e);
-      alert('Delete failed.');
+      setToast({ type: 'error', message: e.response?.data?.message || 'Delete failed.' });
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -88,6 +115,9 @@ const OwnerDashboard = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 text-left page-enter">
+      {/* Toast Notification */}
+      <Toast toast={toast} onClose={() => setToast(null)} />
+
       {/* Header Banner */}
       <div className="relative bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 rounded-2xl p-8 text-white overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
@@ -105,6 +135,13 @@ const OwnerDashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-3 self-start md:self-auto flex-wrap">
+            <Link
+              to="/owner-courses"
+              className="bg-white text-indigo-700 hover:bg-indigo-50 px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-95"
+            >
+              <BookOpen size={15} />
+              Manage Courses
+            </Link>
             <Link
               to="/owner-notes"
               className="bg-white text-indigo-700 hover:bg-indigo-50 px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-95"
@@ -245,15 +282,17 @@ const OwnerDashboard = () => {
                         <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
                           <button
                             onClick={() => handleStudentView(student.id)}
-                            className="p-2 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-200 text-indigo-600 rounded-lg transition-all duration-200"
+                            className="p-2 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-200 text-indigo-600 rounded-lg transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             title="View student data"
+                            aria-label={`View data for student ${student.name}`}
                           >
                             <Eye size={13} />
                           </button>
                           <button
                             onClick={() => handleStudentDelete(student.id, student.name)}
-                            className="p-2 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 text-rose-500 rounded-lg transition-all duration-200"
+                            className="p-2 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 text-rose-500 rounded-lg transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             title="Delete student"
+                            aria-label={`Delete student ${student.name}`}
                           >
                             <Trash2 size={13} />
                           </button>
@@ -412,6 +451,61 @@ const OwnerDashboard = () => {
         </div>
 
       </div>
+
+      {/* Delete Student Confirmation Modal */}
+      {deleteModalStudent && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-student-modal-title"
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-gray-100 text-left">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle size={22} />
+              </div>
+              <div>
+                <h3 id="delete-student-modal-title" className="text-base font-bold text-gray-900">
+                  Delete Student Confirmation
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Student: <span className="font-semibold text-gray-700">{deleteModalStudent.name}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="text-xs text-gray-600 space-y-2 bg-gray-50 p-4 rounded-xl border border-gray-100">
+              <p>
+                Are you sure you want to permanently delete student <strong>"{deleteModalStudent.name}"</strong>?
+              </p>
+              <p className="text-rose-600 font-semibold">
+                ⚠️ This action is permanent and will remove the student profile, enrollments, and learning progress.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteModalStudent(null)}
+                disabled={deleteSubmitting}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors focus:outline-none"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmStudentDelete}
+                disabled={deleteSubmitting}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-rose-500"
+              >
+                {deleteSubmitting && <RefreshCw size={13} className="animate-spin" />}
+                <span>Delete Permanently</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

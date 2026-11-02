@@ -12,36 +12,19 @@ import {
   CheckCircle2,
   Clock,
   BookOpen,
-  Layers,
   UploadCloud,
   File,
   X,
-  ArrowRight,
-  ExternalLink,
   Download,
   AlertCircle,
-  HelpCircle,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react';
-
-const formatBytes = (bytes) => {
-  if (!bytes || bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-};
-
-const getFileTypeBadge = (fileType) => {
-  const type = (fileType || '').toUpperCase();
-  if (type === 'PDF') return 'bg-red-50 text-red-700 border-red-200';
-  if (type.includes('DOC')) return 'bg-blue-50 text-blue-700 border-blue-200';
-  if (type.includes('PPT')) return 'bg-amber-50 text-amber-700 border-amber-200';
-  if (type.includes('TXT')) return 'bg-gray-50 text-gray-700 border-gray-200';
-  if (['PNG', 'JPG', 'JPEG', 'WEBP', 'IMAGE'].includes(type)) return 'bg-purple-50 text-purple-700 border-purple-200';
-  return 'bg-indigo-50 text-indigo-700 border-indigo-200';
-};
+import Toast from '../components/Toast';
+import { formatBytes, getFileTypeBadge } from '../utils/formatters';
+import useEscapeKey from '../hooks/useEscapeKey';
 
 const OwnerNotes = () => {
   const { api } = useAuth();
@@ -63,6 +46,18 @@ const OwnerNotes = () => {
   const [editingNote, setEditingNote] = useState(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // In-app delete modal & toast feedback
+  const [deleteNoteModal, setDeleteNoteModal] = useState(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  // Handle Escape key to close modals
+  useEscapeKey(() => {
+    if (deleteNoteModal && !deleteSubmitting) setDeleteNoteModal(null);
+    if (previewNote) setPreviewNote(null);
+    if (modalOpen && !saving) setModalOpen(false);
+  }, Boolean(deleteNoteModal || modalOpen || previewNote));
 
   // Course modules for active selection in modal
   const [selectedCourseModules, setSelectedCourseModules] = useState([]);
@@ -111,6 +106,19 @@ const OwnerNotes = () => {
     fetchNotes();
     fetchCourses();
   }, []);
+
+  // Handle Escape key to close modals
+  useEffect(() => {
+    if (!modalOpen && !previewNote) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (modalOpen && !saving) setModalOpen(false);
+        if (previewNote) setPreviewNote(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [modalOpen, previewNote, saving]);
 
   // Fetch modules when a course is chosen in the Create/Edit modal
   const fetchModulesForCourse = async (courseId) => {
@@ -236,6 +244,7 @@ const OwnerNotes = () => {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         if (data.success) {
+          setToast({ type: 'success', message: `Note "${form.title}" updated successfully.` });
           setModalOpen(false);
           fetchNotes();
         }
@@ -244,6 +253,7 @@ const OwnerNotes = () => {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         if (data.success) {
+          setToast({ type: 'success', message: `Note "${form.title}" uploaded successfully.` });
           setModalOpen(false);
           fetchNotes();
         }
@@ -260,23 +270,35 @@ const OwnerNotes = () => {
     try {
       const { data } = await api.patch(`/owner/notes/${note.id}/status`, { status: nextStatus });
       if (data.success) {
+        setToast({ type: 'success', message: `Note status updated to ${nextStatus}.` });
         fetchNotes();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to change status.');
+      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to change status.' });
     }
   };
 
-  const handleDelete = async (note) => {
-    if (!window.confirm(`Are you sure you want to permanently delete note "${note.title}"?`)) return;
+  const handleDelete = (note) => {
+    setDeleteNoteModal(note);
+  };
+
+  const handleConfirmDeleteNote = async () => {
+    if (!deleteNoteModal) return;
+    setDeleteSubmitting(true);
     try {
-      const { data } = await api.delete(`/owner/notes/${note.id}`);
+      const { data } = await api.delete(`/owner/notes/${deleteNoteModal.id}`);
       if (data.success) {
+        setToast({ type: 'success', message: `Note "${deleteNoteModal.title}" deleted successfully.` });
         fetchNotes();
-        if (previewNote?.id === note.id) setPreviewNote(null);
+        if (previewNote?.id === deleteNoteModal.id) setPreviewNote(null);
+        setDeleteNoteModal(null);
+      } else {
+        setToast({ type: 'error', message: data.message || 'Failed to delete note.' });
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete note.');
+      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to delete note.' });
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -323,7 +345,7 @@ const OwnerNotes = () => {
       window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
       console.error('File download error:', err);
-      alert(err.response?.data?.message || 'Failed to download file.');
+      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to download file.' });
     } finally {
       setDownloadingNoteId(null);
     }
@@ -342,6 +364,9 @@ const OwnerNotes = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 page-enter text-left">
+      {/* Toast Notification */}
+      <Toast toast={toast} onClose={() => setToast(null)} />
+
       {/* Header Banner */}
       <div className="relative bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 rounded-2xl p-8 text-white overflow-hidden shadow-xl shadow-indigo-500/10">
         <div className="absolute inset-0 pointer-events-none">
@@ -405,14 +430,20 @@ const OwnerNotes = () => {
             <div className="relative flex-1 sm:flex-initial">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
+                id="owner-notes-search"
                 type="text"
                 placeholder="Search notes, course, keywords..."
+                aria-label="Search notes, course, keywords"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="input pl-8 py-2 text-xs w-full sm:w-56"
               />
               {search && (
-                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <button
+                  onClick={() => setSearch('')}
+                  aria-label="Clear search"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                >
                   <X size={12} />
                 </button>
               )}
@@ -420,6 +451,7 @@ const OwnerNotes = () => {
 
             {/* Course Filter */}
             <select
+              aria-label="Filter by course"
               value={courseFilter}
               onChange={e => setCourseFilter(e.target.value)}
               className="px-3 py-2 text-xs font-semibold rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white cursor-pointer"
@@ -432,6 +464,7 @@ const OwnerNotes = () => {
 
             {/* Status Filter */}
             <select
+              aria-label="Filter by status"
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
               className="px-3 py-2 text-xs font-semibold rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white cursor-pointer"
@@ -520,22 +553,25 @@ const OwnerNotes = () => {
                     <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
                       <button
                         onClick={() => setPreviewNote(note)}
-                        className="p-1.5 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-200 text-indigo-600 rounded-lg transition-all"
+                        className="p-1.5 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-200 text-indigo-600 rounded-lg transition-all focus:outline-none focus:ring-1 focus:ring-indigo-500"
                         title="Preview note"
+                        aria-label={`Preview note ${note.title}`}
                       >
                         <Eye size={14} />
                       </button>
                       <button
                         onClick={() => openEditModal(note)}
-                        className="p-1.5 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 text-blue-600 rounded-lg transition-all"
+                        className="p-1.5 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 text-blue-600 rounded-lg transition-all focus:outline-none focus:ring-1 focus:ring-indigo-500"
                         title="Edit note"
+                        aria-label={`Edit note ${note.title}`}
                       >
                         <Edit size={14} />
                       </button>
                       <button
                         onClick={() => handleDelete(note)}
-                        className="p-1.5 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 text-rose-500 rounded-lg transition-all"
+                        className="p-1.5 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 text-rose-500 rounded-lg transition-all focus:outline-none focus:ring-1 focus:ring-indigo-500"
                         title="Delete note"
+                        aria-label={`Delete note ${note.title}`}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -552,7 +588,12 @@ const OwnerNotes = () => {
       {/* CREATE / EDIT NOTE MODAL */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm overflow-y-auto animate-fadeIn">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm overflow-y-auto animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="note-form-modal-title"
+        >
           <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl overflow-hidden my-8">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
@@ -560,13 +601,14 @@ const OwnerNotes = () => {
                 <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
                   <FileText size={18} />
                 </div>
-                <h3 className="font-extrabold text-gray-900 text-base">
+                <h3 id="note-form-modal-title" className="font-extrabold text-gray-900 text-base">
                   {editingNote ? 'Edit Study Note' : 'Create New Study Note'}
                 </h3>
               </div>
               <button
                 onClick={() => setModalOpen(false)}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                aria-label="Close dialog"
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <X size={18} />
               </button>
@@ -583,8 +625,9 @@ const OwnerNotes = () => {
 
               {/* Title */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">Note Title *</label>
+                <label htmlFor="note-form-title" className="block text-xs font-bold text-gray-700 mb-1.5">Note Title *</label>
                 <input
+                  id="note-form-title"
                   type="text"
                   required
                   placeholder="e.g., Complete JavaScript DOM Manipulation Cheat Sheet"
@@ -597,8 +640,9 @@ const OwnerNotes = () => {
               {/* Course & Module Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5">Course *</label>
+                  <label htmlFor="note-form-course" className="block text-xs font-bold text-gray-700 mb-1.5">Course *</label>
                   <select
+                    id="note-form-course"
                     value={form.course_id}
                     onChange={handleCourseChange}
                     required
@@ -612,8 +656,9 @@ const OwnerNotes = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5">Module (Optional)</label>
+                  <label htmlFor="note-form-module" className="block text-xs font-bold text-gray-700 mb-1.5">Module (Optional)</label>
                   <select
+                    id="note-form-module"
                     value={form.module_id}
                     onChange={e => setForm(p => ({ ...p, module_id: e.target.value }))}
                     disabled={loadingModules || selectedCourseModules.length === 0}
@@ -629,8 +674,9 @@ const OwnerNotes = () => {
 
               {/* Short Description */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">Description (Optional)</label>
+                <label htmlFor="note-form-description" className="block text-xs font-bold text-gray-700 mb-1.5">Description (Optional)</label>
                 <input
+                  id="note-form-description"
                   type="text"
                   placeholder="Brief summary of key concepts covered in this note"
                   value={form.description}
@@ -641,8 +687,9 @@ const OwnerNotes = () => {
 
               {/* Content Area */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">Note Content / Detailed Text</label>
+                <label htmlFor="note-form-content" className="block text-xs font-bold text-gray-700 mb-1.5">Note Content / Detailed Text</label>
                 <textarea
+                  id="note-form-content"
                   rows={5}
                   placeholder="Type or paste lecture notes, code snippets, reference guidelines, etc..."
                   value={form.content}
@@ -766,7 +813,12 @@ const OwnerNotes = () => {
       {/* PREVIEW NOTE MODAL */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {previewNote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm overflow-y-auto animate-fadeIn">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm overflow-y-auto animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="note-preview-modal-title"
+        >
           <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl overflow-hidden my-8">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50">
               <div className="flex items-center gap-2">
@@ -777,14 +829,18 @@ const OwnerNotes = () => {
                 </span>
                 <span className="text-xs text-gray-400">• {previewNote.course_title}</span>
               </div>
-              <button onClick={() => setPreviewNote(null)} className="text-gray-400 hover:text-gray-600">
+              <button
+                onClick={() => setPreviewNote(null)}
+                aria-label="Close dialog"
+                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
                 <X size={18} />
               </button>
             </div>
 
             <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto text-left">
               <div>
-                <h2 className="text-xl font-extrabold text-gray-900">{previewNote.title}</h2>
+                <h2 id="note-preview-modal-title" className="text-xl font-extrabold text-gray-900">{previewNote.title}</h2>
                 {previewNote.module_title && (
                   <p className="text-xs text-indigo-600 font-semibold mt-1">Module: {previewNote.module_title}</p>
                 )}
@@ -838,6 +894,65 @@ const OwnerNotes = () => {
                 className="text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1"
               >
                 <Edit size={13} /> Edit Note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete Note Confirmation Modal */}
+      {deleteNoteModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-note-modal-title"
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-gray-100 text-left">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle size={22} />
+              </div>
+              <div>
+                <h3 id="delete-note-modal-title" className="text-base font-bold text-gray-900">
+                  Delete Note Confirmation
+                </h3>
+                <p className="text-xs text-gray-500 truncate max-w-xs">
+                  Note: <span className="font-semibold text-gray-700">{deleteNoteModal.title}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="text-xs text-gray-600 space-y-2 bg-gray-50 p-4 rounded-xl border border-gray-100">
+              <p>
+                Are you sure you want to permanently delete note <strong>"{deleteNoteModal.title}"</strong>?
+              </p>
+              {deleteNoteModal.file_name && (
+                <p className="text-gray-500">
+                  Attached file: <span className="font-mono text-gray-700">{deleteNoteModal.file_name}</span> ({formatBytes(deleteNoteModal.file_size)})
+                </p>
+              )}
+              <p className="text-rose-600 font-semibold">
+                ⚠️ This action is permanent and cannot be undone.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteNoteModal(null)}
+                disabled={deleteSubmitting}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors focus:outline-none"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteNote}
+                disabled={deleteSubmitting}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-rose-500"
+              >
+                {deleteSubmitting && <RefreshCw size={13} className="animate-spin" />}
+                <span>Delete Permanently</span>
               </button>
             </div>
           </div>

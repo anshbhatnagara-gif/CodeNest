@@ -44,10 +44,14 @@ export const completeModule = async (req, res) => {
       return res.status(400).json({ success: false, message: 'module_id is required.' });
     }
 
-    // Verify module exists and user is enrolled in that course
+    // Verify module exists and check user enrollment in a single combined query
     const [moduleRows] = await pool.execute(
-      'SELECT m.id, m.title, m.course_id, c.title AS course_title FROM modules m JOIN courses c ON c.id = m.course_id WHERE m.id = ?',
-      [module_id]
+      `SELECT m.id, m.title, m.course_id, c.title AS course_title, e.id AS enrollment_id
+       FROM modules m
+       JOIN courses c ON c.id = m.course_id
+       LEFT JOIN enrollments e ON e.course_id = m.course_id AND e.user_id = ?
+       WHERE m.id = ?`,
+      [userId, module_id]
     );
 
     if (moduleRows.length === 0) {
@@ -56,13 +60,7 @@ export const completeModule = async (req, res) => {
 
     const module = moduleRows[0];
 
-    // Check enrollment
-    const [enrollment] = await pool.execute(
-      'SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?',
-      [userId, module.course_id]
-    );
-
-    if (enrollment.length === 0) {
+    if (!module.enrollment_id) {
       return res.status(403).json({ success: false, message: 'Please enroll in the course first.' });
     }
 
@@ -92,18 +90,16 @@ export const completeModule = async (req, res) => {
       [userId, `Completed module: ${module.title}`]
     );
 
-    // Check if course is fully completed
-    const [totalMods] = await pool.execute(
-      'SELECT COUNT(*) AS total FROM modules WHERE course_id = ?',
-      [module.course_id]
-    );
-
-    const [doneMods] = await pool.execute(
-      `SELECT COUNT(*) AS done FROM progress p
-       JOIN modules m ON m.id = p.module_id
-       WHERE p.user_id = ? AND m.course_id = ?`,
-      [userId, module.course_id]
-    );
+    // Parallelize course module count checks
+    const [[totalMods], [doneMods]] = await Promise.all([
+      pool.execute('SELECT COUNT(*) AS total FROM modules WHERE course_id = ?', [module.course_id]),
+      pool.execute(
+        `SELECT COUNT(*) AS done FROM progress p
+         JOIN modules m ON m.id = p.module_id
+         WHERE p.user_id = ? AND m.course_id = ?`,
+        [userId, module.course_id]
+      )
+    ]);
 
     const total = totalMods[0].total;
     const done = doneMods[0].done;

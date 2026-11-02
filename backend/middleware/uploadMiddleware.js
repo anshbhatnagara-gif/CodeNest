@@ -2,6 +2,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import storageAdapter from '../config/storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,8 +12,8 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Configure disk storage
-const storage = multer.diskStorage({
+// Configure disk storage for local fallback
+const diskStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, uploadDir);
   },
@@ -25,6 +26,23 @@ const storage = multer.diskStorage({
     cb(null, `${baseName}_${uniqueSuffix}${ext}`);
   }
 });
+
+// Configure memory storage for Cloudflare R2
+const memStorage = multer.memoryStorage();
+
+// Dynamic storage engine: uses memory storage when R2 is active, disk storage for local fallback
+class DynamicStorageEngine {
+  _handleFile(req, file, cb) {
+    const engine = storageAdapter.isConfigured() ? memStorage : diskStorage;
+    engine._handleFile(req, file, cb);
+  }
+  _removeFile(req, file, cb) {
+    const engine = storageAdapter.isConfigured() ? memStorage : diskStorage;
+    engine._removeFile(req, file, cb);
+  }
+}
+
+const storage = new DynamicStorageEngine();
 
 // Allowed MIME types and extensions
 const allowedExtensions = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.txt', '.png', '.jpg', '.jpeg', '.webp', '.gif'];
@@ -85,30 +103,40 @@ export const handleUploadError = (err, req, res, next) => {
 
 /**
  * Verify file signatures and byte structures for supported formats
+ * Accepts either a Buffer (memory storage) or a string file path (disk storage).
  */
-export const verifyFileSignature = (filePath, originalname, mimetype) => {
+export const verifyFileSignature = (fileOrBuffer, originalname, mimetype) => {
   const ext = path.extname(originalname).toLowerCase();
 
-  const bufferSize = 8192;
-  const buffer = Buffer.alloc(bufferSize);
-  let bytesRead = 0;
-
-  try {
-    const fd = fs.openSync(filePath, 'r');
-    try {
-      bytesRead = fs.readSync(fd, buffer, 0, bufferSize, 0);
-    } finally {
-      fs.closeSync(fd);
+  let header;
+  if (Buffer.isBuffer(fileOrBuffer)) {
+    if (fileOrBuffer.length === 0) {
+      return false;
     }
-  } catch (err) {
+    header = fileOrBuffer.subarray(0, Math.min(8192, fileOrBuffer.length));
+  } else if (typeof fileOrBuffer === 'string') {
+    const bufferSize = 8192;
+    const buffer = Buffer.alloc(bufferSize);
+    let bytesRead = 0;
+
+    try {
+      const fd = fs.openSync(fileOrBuffer, 'r');
+      try {
+        bytesRead = fs.readSync(fd, buffer, 0, bufferSize, 0);
+      } finally {
+        fs.closeSync(fd);
+      }
+    } catch (err) {
+      return false;
+    }
+
+    if (bytesRead === 0) {
+      return false;
+    }
+    header = buffer.subarray(0, bytesRead);
+  } else {
     return false;
   }
-
-  if (bytesRead === 0) {
-    return false;
-  }
-
-  const header = buffer.subarray(0, bytesRead);
 
   const matches = (sig, offset = 0) => {
     if (header.length < offset + sig.length) return false;
@@ -203,21 +231,21 @@ export const verifyFileSignature = (filePath, originalname, mimetype) => {
 
 /**
  * Middleware to validate saved file content against extension and MIME type.
- * Cleans up temporary file if validation fails.
+ * Cleans up temporary file if validation fails (when using disk storage).
  */
 export const validateFileContent = (req, res, next) => {
   if (!req.file) {
     return next();
   }
 
-  const filePath = req.file.path;
+  const fileTarget = req.file.buffer || req.file.path;
   const { originalname, mimetype } = req.file;
 
   try {
-    const isValid = verifyFileSignature(filePath, originalname, mimetype);
+    const isValid = verifyFileSignature(fileTarget, originalname, mimetype);
     if (!isValid) {
-      if (fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch (_) {}
+      if (req.file.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
       }
       req.file = undefined;
       return res.status(400).json({
@@ -226,8 +254,8 @@ export const validateFileContent = (req, res, next) => {
       });
     }
   } catch (err) {
-    if (fs.existsSync(filePath)) {
-      try { fs.unlinkSync(filePath); } catch (_) {}
+    if (req.file.path && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
     }
     req.file = undefined;
     return res.status(400).json({

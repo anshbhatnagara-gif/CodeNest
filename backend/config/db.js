@@ -12,7 +12,9 @@ const poolConfig = {
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  timezone: '+05:30'
+  timezone: '+05:30',
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000
 };
 
 if (process.env.DB_SSL === 'true') {
@@ -27,7 +29,10 @@ const pool = mysql.createPool(poolConfig);
 export const connectDB = async () => {
   try {
     const conn = await pool.getConnection();
-    console.log(`✅ Database Connected: ${process.env.DB_HOST}/${process.env.DB_NAME}`);
+    const safeHost = process.env.DB_HOST
+      ? (process.env.DB_HOST.includes('tidbcloud') ? '[TiDB Cloud Cluster]' : process.env.DB_HOST)
+      : 'localhost';
+    console.log(`✅ Database Connected: ${safeHost}/${process.env.DB_NAME || 'codenest_free_academy'}`);
     conn.release();
   } catch (error) {
     console.error('❌ Database Connection Error:', error.message);

@@ -2,6 +2,7 @@ import pool from '../config/db.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import storage from '../config/storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -168,6 +169,11 @@ export const getPublishedNotes = async (req, res) => {
 
     const [notes] = await pool.execute(query, params);
 
+    if (typeof res.set === 'function') {
+      res.set('Cache-Control', 'public, max-age=60');
+    } else if (typeof res.setHeader === 'function') {
+      res.setHeader('Cache-Control', 'public, max-age=60');
+    }
     res.json({
       success: true,
       count: notes.length,
@@ -208,6 +214,22 @@ export const getNoteById = async (req, res) => {
     // Non-owners can only see published notes
     if (note.status !== 'published' && !isOwner) {
       return res.status(404).json({ success: false, message: 'Note not found or unpublished.' });
+    }
+
+    if (typeof res.set === 'function') {
+      if (note.status === 'published' && !isOwner) {
+        res.set('Cache-Control', 'public, max-age=60');
+      } else {
+        res.set('Cache-Control', 'private, no-cache');
+      }
+      res.set('Vary', 'Authorization');
+    } else if (typeof res.setHeader === 'function') {
+      if (note.status === 'published' && !isOwner) {
+        res.setHeader('Cache-Control', 'public, max-age=60');
+      } else {
+        res.setHeader('Cache-Control', 'private, no-cache');
+      }
+      res.setHeader('Vary', 'Authorization');
     }
 
     res.json({
@@ -253,24 +275,22 @@ export const downloadNoteFile = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Forbidden. Attachment unavailable or draft note.' });
     }
 
-    // Secure resolution of local file path within uploadDir
-    const uploadDir = path.resolve(__dirname, '..', 'uploads', 'notes');
-    const relativePath = note.file_url.replace(/^\/uploads\/notes\//, '').replace(/^\/uploads\//, '');
-    const fileName = path.basename(relativePath);
+    // Secure resolution of attachment download via StorageAdapter
+    const downloadRes = await storage.getAttachmentDownloadUrl(note.file_url, note.file_name);
 
-    // Prevent path traversal
-    const absolutePath = path.resolve(uploadDir, fileName);
-    if (!absolutePath.startsWith(uploadDir)) {
-      return res.status(400).json({ success: false, message: 'Invalid file path.' });
+    if (downloadRes.type === 'redirect') {
+      return res.redirect(downloadRes.url);
     }
 
-    if (!fs.existsSync(absolutePath)) {
+    if (!fs.existsSync(downloadRes.path)) {
       return res.status(404).json({ success: false, message: 'File not found on server.' });
     }
 
-    const downloadName = note.file_name || fileName;
-    res.download(absolutePath, downloadName);
+    res.download(downloadRes.path, downloadRes.fileName);
   } catch (error) {
+    if (error.message && (error.message.includes('traversal') || error.message.includes('Security Error'))) {
+      return res.status(404).json({ success: false, message: 'File not found or invalid path.' });
+    }
     console.error('Download Note File Error:', error.message);
     res.status(500).json({ success: false, message: 'Server error downloading note file.' });
   }
@@ -351,24 +371,25 @@ export const getOwnerNotes = async (req, res) => {
 
 // POST /api/owner/notes (Create Note)
 export const createNote = async (req, res) => {
+  let uploadResult = null;
   try {
     const { title, description, content, course_id, module_id, status } = req.body;
     const userId = req.user.id;
 
     if (!title || !title.trim()) {
-      if (req.file) deleteLocalFile(`/uploads/notes/${req.file.filename}`);
+      if (req.file?.path) deleteLocalFile(`/uploads/notes/${req.file.filename}`);
       return res.status(400).json({ success: false, message: 'Note title is required.' });
     }
 
     if (!course_id) {
-      if (req.file) deleteLocalFile(`/uploads/notes/${req.file.filename}`);
+      if (req.file?.path) deleteLocalFile(`/uploads/notes/${req.file.filename}`);
       return res.status(400).json({ success: false, message: 'Please select a course.' });
     }
 
     // Verify Course exists
     const [courseRows] = await pool.execute('SELECT id, title FROM courses WHERE id = ?', [course_id]);
     if (courseRows.length === 0) {
-      if (req.file) deleteLocalFile(`/uploads/notes/${req.file.filename}`);
+      if (req.file?.path) deleteLocalFile(`/uploads/notes/${req.file.filename}`);
       return res.status(404).json({ success: false, message: 'Selected course not found.' });
     }
 
@@ -390,7 +411,14 @@ export const createNote = async (req, res) => {
     let fileSize = null;
 
     if (req.file) {
-      fileUrl = `/uploads/notes/${req.file.filename}`;
+      uploadResult = await storage.uploadAttachment({
+        buffer: req.file.buffer,
+        filePath: req.file.path,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        filename: req.file.filename
+      });
+      fileUrl = uploadResult.fileUrl;
       fileName = req.file.originalname;
       fileType = formatFileType(req.file.originalname, req.file.mimetype);
       fileSize = req.file.size;
@@ -441,7 +469,11 @@ export const createNote = async (req, res) => {
       note: newNoteRows[0]
     });
   } catch (error) {
-    if (req.file) deleteLocalFile(`/uploads/notes/${req.file.filename}`);
+    if (uploadResult?.fileUrl) {
+      try { await storage.deleteAttachment(uploadResult.fileUrl); } catch (_) {}
+    } else if (req.file?.path) {
+      deleteLocalFile(`/uploads/notes/${req.file.filename}`);
+    }
     console.error('Create Note Error:', error.message);
     res.status(500).json({ success: false, message: 'Server error creating note.' });
   }
@@ -449,6 +481,7 @@ export const createNote = async (req, res) => {
 
 // PUT /api/owner/notes/:id (Update Note)
 export const updateNote = async (req, res) => {
+  let newUploadResult = null;
   try {
     const { id } = req.params;
     const { title, description, content, course_id, module_id, status, remove_file } = req.body;
@@ -456,7 +489,7 @@ export const updateNote = async (req, res) => {
 
     const [existingRows] = await pool.execute('SELECT * FROM notes WHERE id = ?', [id]);
     if (existingRows.length === 0) {
-      if (req.file) deleteLocalFile(`/uploads/notes/${req.file.filename}`);
+      if (req.file?.path) deleteLocalFile(`/uploads/notes/${req.file.filename}`);
       return res.status(404).json({ success: false, message: 'Note not found.' });
     }
 
@@ -466,7 +499,7 @@ export const updateNote = async (req, res) => {
     const targetCourseId = course_id ? parseInt(course_id, 10) : currentNote.course_id;
     const [courseRows] = await pool.execute('SELECT id, title FROM courses WHERE id = ?', [targetCourseId]);
     if (courseRows.length === 0) {
-      if (req.file) deleteLocalFile(`/uploads/notes/${req.file.filename}`);
+      if (req.file?.path) deleteLocalFile(`/uploads/notes/${req.file.filename}`);
       return res.status(404).json({ success: false, message: 'Selected course not found.' });
     }
 
@@ -491,15 +524,33 @@ export const updateNote = async (req, res) => {
 
     // Handle new uploaded file
     if (req.file) {
-      // Clean up previous file
-      if (currentNote.file_url) deleteLocalFile(currentNote.file_url);
+      newUploadResult = await storage.uploadAttachment({
+        buffer: req.file.buffer,
+        filePath: req.file.path,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        filename: req.file.filename
+      });
 
-      fileUrl = `/uploads/notes/${req.file.filename}`;
+      // Clean up previous file from storage
+      if (currentNote.file_url) {
+        await storage.deleteAttachment(currentNote.file_url);
+      }
+
+      fileUrl = newUploadResult.fileUrl;
       fileName = req.file.originalname;
       fileType = formatFileType(req.file.originalname, req.file.mimetype);
       fileSize = req.file.size;
     } else if (remove_file === 'true' || remove_file === true) {
-      if (currentNote.file_url) deleteLocalFile(currentNote.file_url);
+      if (currentNote.file_url) {
+        const delRes = await storage.deleteAttachment(currentNote.file_url);
+        if (!delRes.success && delRes.deletedFrom === 'r2') {
+          return res.status(502).json({
+            success: false,
+            message: `Failed to remove attachment from Cloudflare R2: ${delRes.error || 'Storage error'}. Note update cancelled.`
+          });
+        }
+      }
       fileUrl = null;
       fileName = null;
       fileType = null;
@@ -561,7 +612,11 @@ export const updateNote = async (req, res) => {
       note: updatedRows[0]
     });
   } catch (error) {
-    if (req.file) deleteLocalFile(`/uploads/notes/${req.file.filename}`);
+    if (newUploadResult?.fileUrl) {
+      try { await storage.deleteAttachment(newUploadResult.fileUrl); } catch (_) {}
+    } else if (req.file?.path) {
+      deleteLocalFile(`/uploads/notes/${req.file.filename}`);
+    }
     console.error('Update Note Error:', error.message);
     res.status(500).json({ success: false, message: 'Server error updating note.' });
   }
@@ -619,7 +674,14 @@ export const deleteNote = async (req, res) => {
 
     // Delete attached file from storage if present
     if (note.file_url) {
-      deleteLocalFile(note.file_url);
+      const delResult = await storage.deleteAttachment(note.file_url);
+      if (!delResult.success && delResult.deletedFrom === 'r2') {
+        console.error(`Failed to delete R2 attachment for note ${id}:`, delResult.error);
+        return res.status(502).json({
+          success: false,
+          message: `Failed to delete attachment from Cloudflare R2: ${delResult.error || 'Storage error'}. Note record preserved to prevent orphaned state.`
+        });
+      }
     }
 
     await pool.execute('DELETE FROM notes WHERE id = ?', [id]);

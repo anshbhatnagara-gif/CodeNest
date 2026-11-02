@@ -2477,12 +2477,16 @@ describe('Security Audit Test Suite — Registration Input Validation Hardening 
 
     pool.execute = async (sql) => {
       if (sql.includes('SELECT * FROM users WHERE email = ?')) {
+
+
+
         return [[{
           id: 88,
           name: 'Login Test User',
           email: 'loginuser@example.com',
           phone: '',
           password: mockHash,
+          
           role: 'student',
           token_version: 1,
           xp: 10,

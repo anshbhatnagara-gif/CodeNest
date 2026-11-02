@@ -61,17 +61,18 @@ const Navbar = () => {
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden lg:flex items-center gap-1">
             {user && navLink('/home', 'Home', <BookOpen size={15} />)}
             {navLink('/courses', 'Courses', <BookMarked size={15} />)}
             {user && navLink('/dashboard', 'Dashboard', <LayoutDashboard size={15} />)}
             {user && navLink('/my-learning', 'My Learning', <GraduationCap size={15} />)}
+            {isOwner && navLink('/owner-courses', 'Manage Courses', <BookOpen size={15} />)}
             {isOwner && navLink('/owner-notes', 'Notes', <FileText size={15} />)}
             {isOwner && navLink('/owner-dashboard', 'Owner Dashboard', <Shield size={15} />)}
           </div>
 
           {/* Right Actions */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-3">
             {user ? (
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2.5">
@@ -87,7 +88,7 @@ const Navbar = () => {
                   </div>
                   <div className="text-sm">
                     <p className="font-semibold text-gray-800 leading-none">{user.name?.split(' ')[0]}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{user.xp} XP · Lv {user.level}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{user.xp} XP · Lv {user.level}</p>
                   </div>
                 </div>
                 <button
@@ -114,7 +115,9 @@ const Navbar = () => {
           {/* Mobile Toggle */}
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="md:hidden p-2 text-gray-500 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-label="Toggle navigation menu"
+            aria-expanded={menuOpen}
+            className="lg:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-500 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -122,11 +125,12 @@ const Navbar = () => {
 
         {/* Mobile Menu — animated */}
         {menuOpen && (
-          <div className="md:hidden py-3 border-t border-gray-100 space-y-1 animate-slideDown overflow-hidden">
+          <div className="lg:hidden py-3 border-t border-gray-100 space-y-1 animate-slideDown overflow-hidden">
             {user && navLink('/home', 'Home', <BookOpen size={15} />)}
             {navLink('/courses', 'Courses', <BookMarked size={15} />)}
             {user && navLink('/dashboard', 'Dashboard', <LayoutDashboard size={15} />)}
             {user && navLink('/my-learning', 'My Learning', <GraduationCap size={15} />)}
+            {isOwner && navLink('/owner-courses', 'Manage Courses', <BookOpen size={15} />)}
             {isOwner && navLink('/owner-notes', 'Notes', <FileText size={15} />)}
             {isOwner && navLink('/owner-dashboard', 'Owner Dashboard', <Shield size={15} />)}
             {user ? (

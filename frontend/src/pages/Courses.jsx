@@ -53,14 +53,20 @@ const Courses = () => {
         <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17} />
           <input
+            id="courses-search"
             type="text"
             placeholder="Search courses by name or topic..."
+            aria-label="Search courses by name or topic"
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="input pl-11 py-3.5 text-sm"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+            <button
+              onClick={() => setSearch('')}
+              aria-label="Clear search query"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-lg"
+            >
               <X size={15} />
             </button>
           )}
@@ -68,13 +74,15 @@ const Courses = () => {
       </div>
 
       {/* Category Filter Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-8 scrollbar-none">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-8 scrollbar-none w-full max-w-full" role="tablist" aria-label="Course categories">
         <SlidersHorizontal size={14} className="text-gray-400 flex-shrink-0 mr-1" />
         {categories.map(cat => (
           <button
             key={cat}
+            role="tab"
+            aria-selected={category === cat}
             onClick={() => setCategory(cat)}
-            className={`px-4 py-2 text-xs font-semibold rounded-full border whitespace-nowrap transition-all duration-200 ${category === cat
+            className={`px-4 py-2 text-xs font-semibold rounded-full border whitespace-nowrap transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${category === cat
               ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20'
               : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600 hover:shadow-sm'
               }`}

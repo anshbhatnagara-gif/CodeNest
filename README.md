@@ -200,14 +200,22 @@ npm run dev
 
 | Method | Route | Description | Auth Required |
 |--------|-------|-------------|---------------|
+| `GET`  | `/api/health` | System health & DB connection probe | No |
 | `POST` | `/api/auth/register` | Register new user | No |
 | `POST` | `/api/auth/login` | Authenticate & get JWT | No |
 | `GET`  | `/api/auth/profile` | Get current user data | Yes |
-| `GET`  | `/api/courses` | Fetch all courses | Yes |
-| `GET`  | `/api/courses/:id` | Fetch course details | Yes |
-| `POST` | `/api/progress/update` | Update module progress | Yes |
-| `GET`  | `/api/owner/stats` | Fetch academy stats | Yes (Owner) |
-| `GET`  | `/api/owner/students`| Fetch all registered users | Yes (Owner) |
+| `POST` | `/api/auth/logout` | Revoke user session | Yes |
+| `GET`  | `/api/courses` | Fetch published courses (includes enrollment if logged in) | No (Optional) |
+| `GET`  | `/api/courses/:id` | Fetch course details & modules | No (Optional) |
+| `POST` | `/api/courses/:id/enroll` | Enroll in course | Yes |
+| `POST` | `/api/progress/module-complete`| Mark module complete & award XP | Yes |
+| `GET`  | `/api/notes` | Fetch published course study notes | No |
+| `GET`  | `/api/notes/:id` | Fetch single note details | No (Drafts: Owner) |
+| `GET`  | `/api/notes/:id/download` | Download note attachment via signed URL / stream | Yes |
+| `GET`  | `/api/owner/dashboard` | Fetch academy overview metrics & analytics | Yes (Owner) |
+| `GET`  | `/api/owner/students` | Fetch all registered student users | Yes (Owner) |
+| `GET`  | `/api/owner/courses` | List all courses (draft & published) | Yes (Owner) |
+| `GET`  | `/api/owner/notes` | List and manage all notes & attachments | Yes (Owner) |
 
 ---
 
@@ -232,17 +240,22 @@ npm run dev
 
 ## 🌍 Deployment Guide
 
-Detailed deployment documentation and history of failures can be found in our comprehensive [DEPLOYMENT.md](file:///c:/Coding%20Academy%20Pro%20free%20cousre/DEPLOYMENT.md) blueprint.
+Detailed deployment documentation, backup strategies, and operational runbooks can be found in our comprehensive [DEPLOYMENT.md](DEPLOYMENT.md) guide.
 
 ### Hosting Stack
 - **Frontend (Vercel Hobby):** The React static application is deployed from the `frontend` root directory.
 - **Backend (Render Free):** The Node.js API server is deployed from the `backend` root directory.
 - **Database (TiDB Cloud):** The MySQL database runs on a secure **TiDB Serverless** cluster requiring SSL TLS 1.2 connections.
+- **File Storage (Cloudflare R2):** S3-compatible cloud object storage for note attachments with local fallback.
 
 ### Quick Deployment Steps
 1. Connect the existing repository to Render and Vercel.
 2. Set Render root directory to `backend`, build command to `npm install`, and start command to `npm start`.
-3. Configure the required Render environment variables (`DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSL=true`, `JWT_SECRET`, `OWNER_EMAIL`, `FRONTEND_URL`, `CORS_ORIGIN`).
+3. Configure the required Render environment variables:
+   - Database: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSL=true`
+   - Authentication & Roles: `JWT_SECRET`, `OWNER_EMAIL`
+   - CORS & Domains: `FRONTEND_URL`, `CORS_ORIGIN`
+   - Storage: `STORAGE_PROVIDER=r2`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`
 4. Set Vercel root directory to `frontend`, build command to `npm run build`, output directory to `dist`, and `VITE_API_URL` to the Render backend URL.
 5. Deploy the backend first, then redeploy the frontend, then update final CORS URLs on Render.
 

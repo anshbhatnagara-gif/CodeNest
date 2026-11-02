@@ -1,21 +1,60 @@
+# Dependencies
 node_modules/
+
+# Production Build Artifacts
 dist/
 build/
+.vercel/
+.turbo/
+
+# Environment and Secret Files
 .env
 .env.*
 *.env
 !.env.example
-.DS_Store
-coverage/
+!**/.env.example
+cloud_run_env.txt
+render_env.txt
+
+# Local Scratch, Worktrees & Test Artefacts
+scratch/
+sync-clean/
+.agents/
+
+# Backups and Database Dumps
+backups/
+backups/*.sql
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.sql.gz
+
+# Uploads & Media Files
+uploads/
+backend/uploads/*
+!backend/uploads/.gitkeep
+!backend/uploads/notes/.gitkeep
+
+# Logs & Debugging
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-backups/
-backups/*.sql
-cloud_run_env.txt
-render_env.txt
-uploads/
-backend/uploads/*
-!backend/uploads/.gitkeep
+pnpm-debug.log*
+coverage/
+
+# IDE & Editor Files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+._*
+

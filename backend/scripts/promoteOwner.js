@@ -20,6 +20,7 @@ const promoteOwner = async () => {
     process.exit(1);
   }
 
+
   if (normalizedEmail !== ownerEmail) {
     console.error(`❌ Error: Target email (${normalizedEmail}) does not match configured OWNER_EMAIL environment variable.`);
     process.exit(1);
@@ -34,6 +35,8 @@ const promoteOwner = async () => {
       'SELECT id, name, email, role FROM users WHERE email = ? FOR UPDATE',
       [normalizedEmail]
     );
+
+    
 
     if (rows.length === 0) {
       await conn.rollback();

@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS courses (
   duration VARCHAR(50),
   thumbnail VARCHAR(500),
   instructor VARCHAR(100),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_course_title (title)
 );
 
 -- =============================================
@@ -46,13 +47,17 @@ CREATE TABLE IF NOT EXISTS modules (
   title VARCHAR(200) NOT NULL,
   order_index INT DEFAULT 0,
   duration VARCHAR(50) DEFAULT '15 min',
+  UNIQUE KEY uq_course_module_order (course_id, order_index),
   FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 );
 
 -- =============================================
+
+
 -- TABLE: enrollments
 -- =============================================
 CREATE TABLE IF NOT EXISTS enrollments (
+
   id INT PRIMARY KEY AUTO_INCREMENT,
   user_id INT NOT NULL,
   course_id INT NOT NULL,
@@ -69,6 +74,7 @@ CREATE TABLE IF NOT EXISTS progress (
   id INT PRIMARY KEY AUTO_INCREMENT,
   user_id INT NOT NULL,
   module_id INT NOT NULL,
+  
   completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY unique_progress (user_id, module_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -96,6 +102,7 @@ CREATE TABLE IF NOT EXISTS notes (
   description TEXT,
   content LONGTEXT,
   course_id INT NOT NULL,
+
 
 
   module_id INT NULL,

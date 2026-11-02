@@ -1,11 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Clock, Users, ArrowRight, CheckCircle2, Star } from 'lucide-react';
-
-const difficultyColor = {
-  Beginner: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  Intermediate: 'bg-blue-50 text-blue-700 border-blue-200',
-  Advanced: 'bg-purple-50 text-purple-700 border-purple-200',
-};
+import { difficultyColor } from '../utils/formatters';
 
 const CourseCard = ({ course }) => {
   const progress = course.progress_percent || 0;
@@ -19,8 +14,10 @@ const CourseCard = ({ course }) => {
         <img
           src={course.thumbnail}
           alt={course.title}
+          loading="lazy"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           onError={(e) => {
+            e.target.onerror = null;
             e.target.src = `https://placehold.co/600x340/6366f1/white?text=${encodeURIComponent(course.title)}`;
           }}
         />
@@ -50,7 +47,7 @@ const CourseCard = ({ course }) => {
         </p>
 
         {/* Meta */}
-        <div className="flex items-center gap-4 text-xs text-gray-400 mb-4">
+        <div className="flex items-center gap-4 text-xs text-gray-500 mb-4">
           <span className="flex items-center gap-1">
             <Clock size={12} />
             {course.duration}
@@ -66,18 +63,25 @@ const CourseCard = ({ course }) => {
         </div>
 
         {/* Instructor */}
-        <div className="text-xs text-gray-400 mb-4">
-          By <span className="font-medium text-gray-600">{course.instructor}</span>
+        <div className="text-xs text-gray-500 mb-4">
+          By <span className="font-semibold text-gray-700">{course.instructor}</span>
         </div>
 
         {/* Progress (if enrolled) */}
         {isEnrolled && (
           <div className="mb-4">
             <div className="flex justify-between text-xs mb-1.5">
-              <span className="text-gray-500">Progress</span>
+              <span className="text-gray-600 font-medium">Progress</span>
               <span className="font-semibold text-indigo-600">{progress}%</span>
             </div>
-            <div className="progress-bar">
+            <div
+              className="progress-bar"
+              role="progressbar"
+              aria-valuenow={progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Progress for ${course.title}: ${progress}%`}
+            >
               <div className="progress-fill" style={{ width: `${progress}%` }} />
             </div>
           </div>

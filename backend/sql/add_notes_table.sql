@@ -24,3 +24,5 @@ CREATE TABLE IF NOT EXISTS notes (
   INDEX idx_notes_status (status),
   INDEX idx_notes_created_by (created_by)
 );
+
+

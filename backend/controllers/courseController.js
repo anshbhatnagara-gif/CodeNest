@@ -8,15 +8,35 @@ export const getCourses = async (req, res) => {
     const query = `
       SELECT 
         c.*,
-        (SELECT COUNT(*) FROM modules m WHERE m.course_id = c.id) AS total_modules,
-        (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id) AS total_enrolled
-        ${userId ? `, (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.user_id = ?) AS is_enrolled` : ', 0 AS is_enrolled'}
+        COALESCE(m.total_modules, 0) AS total_modules,
+        COALESCE(e.total_enrolled, 0) AS total_enrolled
+        ${userId ? ', COALESCE(ue.is_enrolled, 0) AS is_enrolled' : ', 0 AS is_enrolled'}
       FROM courses c
+      LEFT JOIN (SELECT course_id, COUNT(*) AS total_modules FROM modules GROUP BY course_id) m ON m.course_id = c.id
+      LEFT JOIN (SELECT course_id, COUNT(*) AS total_enrolled FROM enrollments GROUP BY course_id) e ON e.course_id = c.id
+      ${userId ? 'LEFT JOIN (SELECT course_id, 1 AS is_enrolled FROM enrollments WHERE user_id = ?) ue ON ue.course_id = c.id' : ''}
+      WHERE c.status = 'published'
       ORDER BY c.id ASC
     `;
 
     const params = userId ? [userId] : [];
     const [courses] = await pool.execute(query, params);
+
+    if (typeof res.setHeader === 'function') {
+      res.setHeader('Vary', 'Authorization');
+      if (!userId) {
+        res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+      } else {
+        res.setHeader('Cache-Control', 'private, no-cache');
+      }
+    } else if (typeof res.set === 'function') {
+      res.set('Vary', 'Authorization');
+      if (!userId) {
+        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+      } else {
+        res.set('Cache-Control', 'private, no-cache');
+      }
+    }
 
     res.json({ success: true, courses });
   } catch (error) {
@@ -36,36 +56,52 @@ export const getCourseById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Course not found.' });
     }
     const course = courses[0];
+    if (course.status === 'draft') {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
 
-    // Get modules
-    const [modules] = await pool.execute(
-      'SELECT * FROM modules WHERE course_id = ? ORDER BY order_index ASC',
-      [id]
-    );
+    // Parallelize module retrieval and enrollment check
+    const [modulesResult, enrollmentResult] = await Promise.all([
+      pool.execute('SELECT * FROM modules WHERE course_id = ? ORDER BY order_index ASC', [id]),
+      userId
+        ? pool.execute('SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?', [userId, id])
+        : Promise.resolve([[]])
+    ]);
 
-    // Get user progress if logged in
+    const modules = modulesResult[0];
+    const isEnrolled = enrollmentResult[0].length > 0;
+
+    // Get user progress specifically for modules of this course
     let completedModules = [];
-    let isEnrolled = false;
-
-    if (userId) {
-      const [enrollment] = await pool.execute(
-        'SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?',
-        [userId, id]
+    if (isEnrolled && modules.length > 0) {
+      const moduleIds = modules.map((m) => m.id);
+      const placeholders = moduleIds.map(() => '?').join(',');
+      const [prog] = await pool.execute(
+        `SELECT module_id FROM progress WHERE user_id = ? AND module_id IN (${placeholders})`,
+        [userId, ...moduleIds]
       );
-      isEnrolled = enrollment.length > 0;
-
-      if (isEnrolled) {
-        const [prog] = await pool.execute(
-          'SELECT module_id FROM progress WHERE user_id = ?',
-          [userId]
-        );
-        completedModules = prog.map(p => p.module_id);
-      }
+      completedModules = prog.map(p => p.module_id);
     }
 
     const progressPercent = modules.length > 0
       ? Math.round((completedModules.length / modules.length) * 100)
       : 0;
+
+    if (typeof res.setHeader === 'function') {
+      res.setHeader('Vary', 'Authorization');
+      if (!userId) {
+        res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+      } else {
+        res.setHeader('Cache-Control', 'private, no-cache');
+      }
+    } else if (typeof res.set === 'function') {
+      res.set('Vary', 'Authorization');
+      if (!userId) {
+        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+      } else {
+        res.set('Cache-Control', 'private, no-cache');
+      }
+    }
 
     res.json({
       success: true,
@@ -93,8 +129,8 @@ export const enrollCourse = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
 
-    const [course] = await pool.execute('SELECT id, title FROM courses WHERE id = ?', [id]);
-    if (course.length === 0) {
+    const [course] = await pool.execute('SELECT id, title, status FROM courses WHERE id = ?', [id]);
+    if (course.length === 0 || course[0].status === 'draft') {
       return res.status(404).json({ success: false, message: 'Course not found.' });
     }
 

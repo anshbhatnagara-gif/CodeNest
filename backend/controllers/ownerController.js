@@ -15,37 +15,42 @@ const getRegularityStatus = (lastActiveAt) => {
 // GET /api/owner/dashboard
 export const getDashboard = async (req, res) => {
   try {
-    const [[{ total_students }]] = await pool.execute("SELECT COUNT(*) AS total_students FROM users WHERE role = 'student'");
-    const [[{ total_enrollments }]] = await pool.execute('SELECT COUNT(*) AS total_enrollments FROM enrollments');
-    const [[{ total_completed }]] = await pool.execute(`
-      SELECT COUNT(DISTINCT e.user_id) AS total_completed
-      FROM enrollments e
-      JOIN courses c ON c.id = e.course_id
-      WHERE (
-        SELECT COUNT(*) FROM modules m WHERE m.course_id = e.course_id
-      ) = (
-        SELECT COUNT(*) FROM progress p JOIN modules m2 ON m2.id = p.module_id
-        WHERE p.user_id = e.user_id AND m2.course_id = e.course_id
-      ) AND (SELECT COUNT(*) FROM modules m WHERE m.course_id = e.course_id) > 0
-    `);
-
-    const [[{ regular }]] = await pool.execute(
-      "SELECT COUNT(*) AS regular FROM users WHERE role='student' AND last_active_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)"
-    );
-    const [[{ less_active }]] = await pool.execute(
-      "SELECT COUNT(*) AS less_active FROM users WHERE role='student' AND last_active_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) AND last_active_at < DATE_SUB(NOW(), INTERVAL 1 DAY)"
-    );
-    const [[{ inactive }]] = await pool.execute(
-      "SELECT COUNT(*) AS inactive FROM users WHERE role='student' AND (last_active_at IS NULL OR last_active_at < DATE_SUB(NOW(), INTERVAL 7 DAY))"
-    );
-
-    const [recentActivity] = await pool.execute(
-      `SELECT al.action, al.created_at, u.name, u.email 
-       FROM activity_logs al 
-       JOIN users u ON u.id = al.user_id 
-       ORDER BY al.created_at DESC 
-       LIMIT 20`
-    );
+    const [
+      [[{ total_students }]],
+      [[{ total_enrollments }]],
+      [[{ total_completed }]],
+      [[{ regular, less_active, inactive } = {}]],
+      [recentActivity]
+    ] = await Promise.all([
+      pool.execute("SELECT COUNT(*) AS total_students FROM users WHERE role = 'student'"),
+      pool.execute('SELECT COUNT(*) AS total_enrollments FROM enrollments'),
+      pool.execute(`
+        SELECT COUNT(DISTINCT e.user_id) AS total_completed
+        FROM enrollments e
+        JOIN courses c ON c.id = e.course_id
+        WHERE (
+          SELECT COUNT(*) FROM modules m WHERE m.course_id = e.course_id
+        ) = (
+          SELECT COUNT(*) FROM progress p JOIN modules m2 ON m2.id = p.module_id
+          WHERE p.user_id = e.user_id AND m2.course_id = e.course_id
+        ) AND (SELECT COUNT(*) FROM modules m WHERE m.course_id = e.course_id) > 0
+      `),
+      pool.execute(`
+        SELECT 
+          COUNT(CASE WHEN last_active_at >= DATE_SUB(NOW(), INTERVAL 1 DAY) THEN 1 END) AS regular,
+          COUNT(CASE WHEN last_active_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) AND last_active_at < DATE_SUB(NOW(), INTERVAL 1 DAY) THEN 1 END) AS less_active,
+          COUNT(CASE WHEN last_active_at IS NULL OR last_active_at < DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 END) AS inactive
+        FROM users 
+        WHERE role = 'student'
+      `),
+      pool.execute(
+        `SELECT al.action, al.created_at, u.name, u.email 
+         FROM activity_logs al 
+         JOIN users u ON u.id = al.user_id 
+         ORDER BY al.created_at DESC 
+         LIMIT 20`
+      )
+    ]);
 
     res.json({
       success: true,
@@ -53,9 +58,9 @@ export const getDashboard = async (req, res) => {
         total_students,
         total_enrollments,
         total_completed,
-        regular,
-        less_active,
-        inactive
+        regular: Number(regular || 0),
+        less_active: Number(less_active || 0),
+        inactive: Number(inactive || 0)
       },
       recent_activity: recentActivity
     });

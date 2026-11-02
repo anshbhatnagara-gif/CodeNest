@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useEffect, useState, useRef } from 'react';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import {
   Clock,
   Users,
@@ -14,32 +14,16 @@ import {
   Download,
   Eye,
   X,
-  FileCode,
   Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../context/AuthContext';
-
-const formatBytes = (bytes) => {
-  if (!bytes || bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-};
-
-const getFileTypeBadge = (fileType) => {
-  const type = (fileType || '').toUpperCase();
-  if (type === 'PDF') return 'bg-red-50 text-red-700 border-red-200';
-  if (type.includes('DOC')) return 'bg-blue-50 text-blue-700 border-blue-200';
-  if (type.includes('PPT')) return 'bg-amber-50 text-amber-700 border-amber-200';
-  if (type.includes('TXT')) return 'bg-gray-50 text-gray-700 border-gray-200';
-  if (['PNG', 'JPG', 'JPEG', 'WEBP', 'IMAGE'].includes(type)) return 'bg-purple-50 text-purple-700 border-purple-200';
-  return 'bg-indigo-50 text-indigo-700 border-indigo-200';
-};
+import { formatBytes, getFileTypeBadge } from '../utils/formatters';
 
 const CourseDetail = () => {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const isResumeIntent = searchParams.get('resume') === 'true';
   const { user } = useAuth();
   const [course, setCourse] = useState(null);
   const [notes, setNotes] = useState([]);
@@ -50,6 +34,8 @@ const CourseDetail = () => {
   const [selectedNote, setSelectedNote] = useState(null);
   const [activeTab, setActiveTab] = useState('curriculum'); // 'curriculum' | 'notes'
   const [downloadingNoteId, setDownloadingNoteId] = useState(null);
+  const [highlightedModuleId, setHighlightedModuleId] = useState(null);
+  const moduleRefs = useRef({});
 
   const handleDownloadFile = async (note) => {
     if (!note || !note.id) return;
@@ -146,6 +132,46 @@ const CourseDetail = () => {
     }
   }, [message]);
 
+  // Handle Escape key to close note preview modal
+  useEffect(() => {
+    if (!selectedNote) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setSelectedNote(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNote]);
+
+  // Handle direct resume to first incomplete module
+  useEffect(() => {
+    if (!isResumeIntent || !course || !course.is_enrolled || !Array.isArray(course.modules)) {
+      return;
+    }
+
+    // Always ensure curriculum tab is active
+    setActiveTab('curriculum');
+
+    const firstIncomplete = course.modules.find(m => !m.is_completed);
+    if (!firstIncomplete) {
+      setHighlightedModuleId(null);
+      return;
+    }
+
+    setHighlightedModuleId(firstIncomplete.id);
+
+    // Scroll after DOM paint
+    const timer = setTimeout(() => {
+      const el = moduleRefs.current[firstIncomplete.id];
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [isResumeIntent, course]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -212,8 +238,12 @@ const CourseDetail = () => {
               <img
                 src={course.thumbnail}
                 alt={course.title}
+                loading="lazy"
                 className="w-full rounded-xl aspect-video object-cover"
-                onError={(e) => { e.target.src = `https://placehold.co/400x225/6366f1/white?text=${encodeURIComponent(course.title)}`; }}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = `https://placehold.co/400x225/6366f1/white?text=${encodeURIComponent(course.title)}`;
+                }}
               />
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -302,49 +332,80 @@ const CourseDetail = () => {
 
             <div className="space-y-0 relative">
               <div className="absolute left-[19px] top-4 bottom-4 w-px bg-gray-200" />
-              {course.modules.map((mod, idx) => (
-                <div
-                  key={mod.id}
-                  className={`relative flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 ml-0 mb-2 ${
-                    mod.is_completed
-                      ? 'bg-emerald-50/50 border-emerald-200/60'
-                      : 'bg-white border-gray-100 hover:border-indigo-200 hover:shadow-sm'
-                  }`}
-                >
-                  <div className={`relative z-10 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all duration-300 ${
-                    mod.is_completed
-                      ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                      : 'bg-white border-2 border-gray-200 text-gray-500'
-                  }`}>
-                    {mod.is_completed ? <CheckCircle2 size={16} /> : idx + 1}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-semibold text-sm ${mod.is_completed ? 'text-emerald-800' : 'text-gray-800'}`}>
-                      {mod.title}
-                    </p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">{mod.duration}</p>
-                  </div>
-
-                  {course.is_enrolled && !mod.is_completed && (
-                    <button
-                      onClick={() => handleComplete(mod.id)}
-                      disabled={completing === mod.id}
-                      className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3.5 py-2 rounded-lg border border-indigo-200 transition-all duration-200 active:scale-95 hover:shadow-sm"
+              {course.modules.map((mod, idx) => {
+                const isTarget = highlightedModuleId === mod.id;
+                return (
+                  <div
+                    key={mod.id}
+                    ref={(el) => {
+                      if (el) moduleRefs.current[mod.id] = el;
+                    }}
+                    className={`relative flex items-center gap-4 p-4 rounded-xl border transition-all duration-300 ml-0 mb-2.5 ${
+                      isTarget
+                        ? 'bg-gradient-to-r from-indigo-50/90 via-purple-50/50 to-white border-indigo-400 shadow-md shadow-indigo-500/10 ring-2 ring-indigo-500/80 scale-[1.01]'
+                        : mod.is_completed
+                        ? 'bg-emerald-50/50 border-emerald-200/60'
+                        : 'bg-white border-gray-100 hover:border-indigo-200 hover:shadow-sm'
+                    }`}
+                  >
+                    <div
+                      className={`relative z-10 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all duration-300 ${
+                        isTarget
+                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 ring-4 ring-indigo-100'
+                          : mod.is_completed
+                          ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                          : 'bg-white border-2 border-gray-200 text-gray-500'
+                      }`}
                     >
-                      {completing === mod.id ? (
-                        <div className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <PlayCircle size={13} />
+                      {mod.is_completed ? <CheckCircle2 size={16} /> : idx + 1}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      {isTarget && (
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-sm animate-pulse">
+                            <Sparkles size={10} /> Next Up • Lesson {idx + 1}
+                          </span>
+                        </div>
                       )}
-                      Mark Done
-                    </button>
-                  )}
-                  {!course.is_enrolled && (
-                    <Lock size={14} className="text-gray-300 flex-shrink-0" />
-                  )}
-                </div>
-              ))}
+                      <p
+                        className={`font-semibold text-sm ${
+                          isTarget
+                            ? 'text-indigo-950 font-bold'
+                            : mod.is_completed
+                            ? 'text-emerald-800'
+                            : 'text-gray-800'
+                        }`}
+                      >
+                        {mod.title}
+                      </p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">{mod.duration}</p>
+                    </div>
+
+                    {course.is_enrolled && !mod.is_completed && (
+                      <button
+                        onClick={() => handleComplete(mod.id)}
+                        disabled={completing === mod.id}
+                        className={`flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-lg border transition-all duration-200 active:scale-95 hover:shadow-sm ${
+                          isTarget
+                            ? 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600 shadow-md shadow-indigo-500/20'
+                            : 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-200'
+                        }`}
+                      >
+                        {completing === mod.id ? (
+                          <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <PlayCircle size={13} />
+                        )}
+                        Mark Done
+                      </button>
+                    )}
+                    {!course.is_enrolled && (
+                      <Lock size={14} className="text-gray-300 flex-shrink-0" />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -393,10 +454,9 @@ const CourseDetail = () => {
                         )}
                       </div>
 
-                      <h3 className="font-bold text-gray-900 text-sm group-hover:text-indigo-600 transition-colors line-clamp-2">
+                      <h3 className="font-bold text-gray-900 text-base group-hover:text-indigo-600 transition-colors">
                         {note.title}
                       </h3>
-
                       {note.description && (
                         <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
                           {note.description}
@@ -404,33 +464,29 @@ const CourseDetail = () => {
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between pt-3 border-t border-gray-50 gap-2">
-                      <span className="text-[11px] text-gray-400">
-                        {new Date(note.created_at).toLocaleDateString()}
-                      </span>
-                      <div className="flex items-center gap-2">
+                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2 text-xs">
+                      <button
+                        onClick={() => setSelectedNote(note)}
+                        className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
+                      >
+                        <Eye size={13} />
+                        View
+                      </button>
+
+                      {note.file_url && (
                         <button
-                          onClick={() => setSelectedNote(note)}
-                          className="px-3 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors flex items-center gap-1.5"
+                          onClick={() => handleDownloadFile(note)}
+                          disabled={downloadingNoteId === note.id}
+                          className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5 disabled:opacity-50"
                         >
-                          <Eye size={13} />
-                          Read Note
+                          {downloadingNoteId === note.id ? (
+                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Download size={13} />
+                          )}
+                          Download
                         </button>
-                        {note.file_url && (
-                          <button
-                            onClick={() => handleDownloadFile(note)}
-                            disabled={downloadingNoteId === note.id}
-                            className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
-                          >
-                            {downloadingNoteId === note.id ? (
-                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <Download size={13} />
-                            )}
-                            Download
-                          </button>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -444,23 +500,32 @@ const CourseDetail = () => {
       {/* STUDENT NOTE PREVIEW MODAL */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {selectedNote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm overflow-y-auto animate-fadeIn">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm overflow-y-auto animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="note-preview-title"
+        >
           <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl overflow-hidden my-8">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-indigo-600">{course.title}</span>
                 {selectedNote.module_title && (
-                  <span className="text-xs text-gray-400">• {selectedNote.module_title}</span>
+                  <span className="text-xs text-gray-500">• {selectedNote.module_title}</span>
                 )}
               </div>
-              <button onClick={() => setSelectedNote(null)} className="text-gray-400 hover:text-gray-600">
+              <button
+                onClick={() => setSelectedNote(null)}
+                aria-label="Close note preview"
+                className="p-1.5 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
                 <X size={18} />
               </button>
             </div>
 
             <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto text-left">
               <div>
-                <h2 className="text-xl font-extrabold text-gray-900">{selectedNote.title}</h2>
+                <h2 id="note-preview-title" className="text-xl font-extrabold text-gray-900">{selectedNote.title}</h2>
                 {selectedNote.description && (
                   <p className="text-sm text-gray-600 mt-2">{selectedNote.description}</p>
                 )}

@@ -10,30 +10,6 @@
 
 **CodeNest Free Academy** is a modern, full-stack online learning platform built to deliver 100% free programming education. It provides interactive course progress tracking, downloadable lecture notes, student dashboard analytics, and an exclusive administration suite for course, module, and student management.
 
----
-
-## Table of Contents
-
-1. [Features](#1-features)
-2. [User Roles & Permissions](#2-user-roles--permissions)
-3. [Screens & Pages Overview](#3-screens--pages-overview)
-4. [Technology Stack](#4-technology-stack)
-5. [System Architecture](#5-system-architecture)
-6. [Folder Structure](#6-folder-structure)
-7. [Installation Prerequisites](#7-installation-prerequisites)
-8. [Local Development Setup](#8-local-development-setup)
-9. [Environment Variable Configuration](#9-environment-variable-configuration)
-10. [Database Setup & Seeding](#10-database-setup--seeding)
-11. [Running the Application](#11-running-the-application)
-12. [Testing Instructions](#12-testing-instructions)
-13. [API Reference](#13-api-reference)
-14. [File Storage Architecture](#14-file-storage-architecture)
-15. [Troubleshooting](#15-troubleshooting)
-16. [Production Deployment Guidelines](#16-production-deployment-guidelines)
-17. [Contribution Guidelines](#17-contribution-guidelines)
-18. [License](#18-license)
-
----
 
 ## 1. Features
 

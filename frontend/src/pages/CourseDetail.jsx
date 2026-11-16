@@ -64,7 +64,25 @@ const CourseDetail = () => {
       window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
       console.error('File download error:', err);
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to download file. Please login and try again.' });
+      let errorMessage = 'Failed to download file. Please try again.';
+
+      if (err.response?.data instanceof Blob) {
+        try {
+          const errorText = await err.response.data.text();
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.message) {
+            errorMessage = errorJson.message;
+          }
+        } catch {
+          if (err.response?.status === 404) {
+            errorMessage = 'File not found on server.';
+          }
+        }
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      }
+
+      setMessage({ type: 'error', text: errorMessage });
     } finally {
       setDownloadingNoteId(null);
     }

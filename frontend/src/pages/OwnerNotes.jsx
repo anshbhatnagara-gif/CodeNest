@@ -345,7 +345,25 @@ const OwnerNotes = () => {
       window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
       console.error('File download error:', err);
-      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to download file.' });
+      let errorMessage = 'Failed to download file.';
+
+      if (err.response?.data instanceof Blob) {
+        try {
+          const errorText = await err.response.data.text();
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.message) {
+            errorMessage = errorJson.message;
+          }
+        } catch {
+          if (err.response?.status === 404) {
+            errorMessage = 'File not found on server.';
+          }
+        }
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      }
+
+      setToast({ type: 'error', message: errorMessage });
     } finally {
       setDownloadingNoteId(null);
     }

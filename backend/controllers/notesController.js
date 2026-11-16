@@ -286,7 +286,12 @@ export const downloadNoteFile = async (req, res) => {
       return res.status(404).json({ success: false, message: 'File not found on server.' });
     }
 
-    res.download(downloadRes.path, downloadRes.fileName);
+    res.download(downloadRes.path, downloadRes.fileName, (err) => {
+      if (err && !res.headersSent) {
+        console.error('Download stream error:', err.message);
+        res.status(500).json({ success: false, message: 'Server error downloading note file.' });
+      }
+    });
   } catch (error) {
     if (error.message && (error.message.includes('traversal') || error.message.includes('Security Error'))) {
       return res.status(404).json({ success: false, message: 'File not found or invalid path.' });

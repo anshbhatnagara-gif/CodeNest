@@ -56,7 +56,7 @@ This guide details the complete feature set implemented in **CodeNest – Free C
 
 ### 2.1 Dual-Gate Owner Authentication
 - **Role Guard:** Accounts must have `role === 'owner'` in the TiDB database.
-- **Environment Gate:** In addition to role validation, [`ownerMiddleware.js`](file:///c:/CodeNest/backend/middleware/ownerMiddleware.js) verifies that `req.user.email` strictly equals `process.env.OWNER_EMAIL`.
+- **Environment Gate:** In addition to role validation, [`ownerMiddleware.js`](../backend/middleware/ownerMiddleware.js) verifies that `req.user.email` strictly equals `process.env.OWNER_EMAIL`.
 - **Protected Administrative UI:** Owner routes (`/owner-dashboard`, `/owner-courses`, `/owner-modules`, `/owner-notes`) automatically redirect non-owner accounts to `/dashboard`.
 
 ### 2.2 Owner Analytics Dashboard

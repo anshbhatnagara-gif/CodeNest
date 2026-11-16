@@ -264,7 +264,7 @@ Stores study notes, cheatsheets, lecture summaries, and downloadable PDF/DOCX re
 
 | Script File | Purpose | Execution Command |
 |---|---|---|
-| [`backend/sql/schema.sql`](file:///c:/CodeNest/backend/sql/schema.sql) | DDL schema script creating all tables, keys, and foreign constraints | `mysql -u ... < backend/sql/schema.sql` |
-| [`backend/sql/seed.sql`](file:///c:/CodeNest/backend/sql/seed.sql) | Seeds initial 7 courses, 60+ curriculum modules, and sample notes | `mysql -u ... < backend/sql/seed.sql` |
-| [`backend/scripts/migrate.js`](file:///c:/CodeNest/backend/scripts/migrate.js) | Node.js migration runner: connects over SSL and applies schema and seed files | `node backend/scripts/migrate.js` |
-| [`backend/scripts/promoteOwner.js`](file:///c:/CodeNest/backend/scripts/promoteOwner.js) | Safely promotes an existing registered user to the `owner` role | `node backend/scripts/promoteOwner.js <email>` |
+| [`backend/sql/schema.sql`](../backend/sql/schema.sql) | DDL schema script creating all tables, keys, and foreign constraints | `mysql -u ... < backend/sql/schema.sql` |
+| [`backend/sql/seed.sql`](../backend/sql/seed.sql) | Seeds initial 7 courses, 60+ curriculum modules, and sample notes | `mysql -u ... < backend/sql/seed.sql` |
+| [`backend/scripts/migrate.js`](../backend/scripts/migrate.js) | Node.js migration runner: connects over SSL and applies schema and seed files | `node backend/scripts/migrate.js` |
+| [`backend/scripts/promoteOwner.js`](../backend/scripts/promoteOwner.js) | Safely promotes an existing registered user to the `owner` role | `node backend/scripts/promoteOwner.js <email>` |

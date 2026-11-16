@@ -57,7 +57,7 @@ Configure the following variable under **Project Settings > Environment Variable
 
 ## 3. Backend Deployment on Render
 
-The backend is deployed as a Node.js Web Service on Render using either the web dashboard or [`render.yaml`](file:///c:/CodeNest/render.yaml).
+The backend is deployed as a Node.js Web Service on Render using either the web dashboard or [`render.yaml`](../render.yaml).
 
 ### 3.1 Render Web Service Settings
 | Setting | Configured Value |
@@ -100,7 +100,7 @@ Currently, Render runs with `STORAGE_PROVIDER=local`. Uploaded attachments are s
 > Render's Free tier operates on an ephemeral container filesystem. Whenever the Render service sleeps after inactivity, restarts, or deploys a new commit, any physical files written to `backend/uploads/notes` are wiped clean. The database retains the metadata record with `file_url = '/uploads/notes/...'`, but attempting to download the file returns `HTTP 404 File not found on server.`.
 
 ### Planned Migration: Cloudflare R2 Object Storage
-CodeNest's backend contains a complete, battle-tested `StorageAdapter` ([`backend/config/storage.js`](file:///c:/CodeNest/backend/config/storage.js)) ready to connect to Cloudflare R2 (S3-compatible object storage).
+CodeNest's backend contains a complete, battle-tested `StorageAdapter` ([`backend/config/storage.js`](../backend/config/storage.js)) ready to connect to Cloudflare R2 (S3-compatible object storage).
 
 Once a Cloudflare R2 bucket is provisioned, set the following environment variables in Render to activate permanent storage:
 ```env
